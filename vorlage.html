@@ -101,8 +101,12 @@ td { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
 
 .btn { font: 600 .85rem var(--font-body); padding: 7px 12px; border-radius: 8px; border: 1px solid var(--ink); background: var(--ink); color: var(--panel); cursor: pointer; }
 .btn:focus-visible { outline: 2px solid var(--price); outline-offset: 2px; }
+.btn-ghost { background: var(--panel); color: var(--ink); border-color: var(--line); }
+.btn:disabled { opacity: .4; cursor: default; }
 .hist-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 8px 16px; }
 .hist-stats div { display: grid; gap: 2px; }
+.hist-day { border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 12px; }
+.hist-day h3 { font-family: var(--font-display); font-size: 1.1rem; font-weight: 600; margin: 0; }
 .hist-stats strong { font-family: var(--font-data); font-size: 1.25rem; font-weight: 600; }
 .hist-stats span.muted { font-size: .82rem; }
 tbody tr.klick { cursor: pointer; }
@@ -201,6 +205,19 @@ footer a { color: inherit; }
     <div class="hist-stats" id="hist-stats"></div>
     <div class="chart" id="hist-chart"></div>
     <div class="tip" id="hist-tip">Über die Balken fahren oder tippen, um Werte zu sehen.</div>
+    <div class="hist-day" id="hist-day" hidden>
+      <div class="panel-head">
+        <h3 id="hist-day-title">Tagesverlauf</h3>
+        <div class="controls">
+          <button class="btn btn-ghost" id="hist-day-prev" type="button" aria-label="Vortag">‹ Vortag</button>
+          <button class="btn btn-ghost" id="hist-day-next" type="button" aria-label="Folgetag">Folgetag ›</button>
+          <button class="btn btn-ghost" id="hist-day-close" type="button">Schliessen</button>
+        </div>
+      </div>
+      <div class="hist-stats" id="hist-day-stats"></div>
+      <div class="chart" id="hist-day-chart"></div>
+      <div class="tip" id="hist-day-tip">Über die Kurve fahren oder tippen, um einzelne Stunden zu sehen.</div>
+    </div>
     <div class="table-wrap">
       <table>
         <thead><tr><th id="hist-col">Jahr</th><th>Base</th><th>Peak</th><th>Min</th><th>Max</th><th>Ø EUR/CHF</th></tr></thead>
@@ -380,7 +397,7 @@ footer a { color: inherit; }
     drawDay(host, data, fx);
   }
 
-  function drawDay(host, data, fx) {
+  function drawDay(host, data, fx, tipEl) {
     host.innerHTML = "";
     if (!data.length) { host.textContent = "Keine Daten für heute vorhanden."; return; }
     const conv1 = v => conv(v, fx);
@@ -403,7 +420,7 @@ footer a { color: inherit; }
     for (let t = t0; t <= t1; t += 3600) {
       const h = +hourFmt.format(new Date(t * 1000));
       if (h % hStep !== 0) continue;
-      if (h === 0 && t !== t0) svgEl("line", { x1: x(t), x2: x(t), y1: T, y2: H - B, stroke: "var(--muted)", "stroke-dasharray": "4 4" }, svg);
+      if (h === 0 && t !== t0 && t < t1) svgEl("line", { x1: x(t), x2: x(t), y1: T, y2: H - B, stroke: "var(--muted)", "stroke-dasharray": "4 4" }, svg);
       svgEl("text", { x: x(t), y: H - 10, "text-anchor": anchor(x(t)) }, svg).textContent = h === 0 ? fmtDay.format(new Date(t * 1000)) : String(h).padStart(2, "0") + ":00";
     }
     // Treppenkurve mit Fläche darunter
@@ -418,7 +435,7 @@ footer a { color: inherit; }
     }
     const cursor = svgEl("line", { x1: 0, x2: 0, y1: T, y2: H - B, stroke: "var(--muted)", opacity: 0 }, svg);
     const dot = svgEl("circle", { r: 4, fill: "var(--price)", stroke: "var(--panel)", "stroke-width": 2, opacity: 0 }, svg);
-    const tip = document.getElementById("day-tip");
+    const tip = tipEl || document.getElementById("day-tip");
     svg.addEventListener("pointermove", ev => {
       const r = svg.getBoundingClientRect();
       const t = t0 + ((ev.clientX - r.left) / r.width * W - L) / (W - L - R) * (t1 - t0);
@@ -569,7 +586,9 @@ footer a { color: inherit; }
       }
       const hit = svgEl("rect", { x: x0, y: T, width: Math.max(bw, 1), height: H - T - B, fill: "transparent" }, svg);
       hit.addEventListener("pointerenter", () => { tip.textContent = it.text + " " + unitLabel() + (it.k ? " · antippen für Stundenverlauf" : ""); });
-      if (it.k) { hit.style.cursor = "pointer"; hit.addEventListener("click", () => selectDay(it.k)); }
+      // Tagesbalken: Stundenverlauf direkt im Rückblick; Monatsbalken (Alle Jahre): dieses Jahr öffnen
+      if (it.k) { hit.style.cursor = "pointer"; hit.addEventListener("click", () => showHistDay(it.k)); }
+      else if (alle) { hit.style.cursor = "pointer"; hit.addEventListener("click", () => { periodSel.value = it.group; periodSel.dispatchEvent(new Event("change")); }); }
     });
 
     // Tabelle: bei "Alle Jahre" je Jahr (anklickbar), sonst je Monat
@@ -607,6 +626,51 @@ footer a { color: inherit; }
   });
   periodSel.addEventListener("change", history);
 
+  // Stundenverlauf eines Tages innerhalb des Rückblicks
+  let histDay = null, histToken = 0;
+  async function showHistDay(k) {
+    histDay = k;
+    const box = document.getElementById("hist-day");
+    const host = document.getElementById("hist-day-chart"), stats = document.getElementById("hist-day-stats");
+    const token = ++histToken;
+    box.hidden = false;
+    document.getElementById("hist-day-title").textContent = "Tagesverlauf " + fmtDay.format(new Date(k + "T12:00:00")) + k.slice(0, 4);
+    const i = HIST.findIndex(r => r.k === k);
+    document.getElementById("hist-day-prev").disabled = i <= 0;
+    document.getElementById("hist-day-next").disabled = i < 0 || i >= HIST.length - 1;
+    stats.innerHTML = "";
+    host.innerHTML = '<p class="muted">Stundenwerte werden geladen …</p>';
+    const data = await loadDay(k);
+    if (token !== histToken) return;
+    if (data == null) { host.innerHTML = '<p class="muted">Die Stundenwerte konnten nicht geladen werden. Diese Funktion geht nur auf der Online-Seite.</p>'; return; }
+    if (!data.length) { host.innerHTML = '<p class="muted">Für diesen Tag gibt es keine Stundenwerte.</p>'; return; }
+    const fx = fxOf(k);
+    stats.innerHTML =
+      '<div><span class="label">Base</span><strong>' + fmt(avg(data), fx) + '</strong></div>' +
+      '<div><span class="label">Peak</span><strong>' + fmt(peak(data), fx) + '</strong></div>' +
+      '<div><span class="label">Min</span><strong>' + fmt(min(data), fx) + '</strong></div>' +
+      '<div><span class="label">Max</span><strong>' + fmt(max(data), fx) + '</strong></div>';
+    drawDay(host, data, fx, document.getElementById("hist-day-tip"));
+    if (!box.dataset.gezeigt) { box.dataset.gezeigt = "1"; box.scrollIntoView({ behavior: "smooth", block: "nearest" }); }
+  }
+  const stepHistDay = d => {
+    const i = HIST.findIndex(r => r.k === histDay);
+    const n = HIST[i + d];
+    if (!n) return;
+    if (!n.k.startsWith(periodSel.value) && periodSel.value !== "alle") { periodSel.value = n.k.slice(0, 4); history(); }
+    showHistDay(n.k);
+  };
+  periodSel.addEventListener("change", () => {
+    if (histDay && periodSel.value !== "alle" && !histDay.startsWith(periodSel.value)) document.getElementById("hist-day-close").click();
+  });
+  document.getElementById("hist-day-prev").addEventListener("click", () => stepHistDay(-1));
+  document.getElementById("hist-day-next").addEventListener("click", () => stepHistDay(1));
+  document.getElementById("hist-day-close").addEventListener("click", () => {
+    histDay = null; histToken++;
+    const box = document.getElementById("hist-day");
+    box.hidden = true; delete box.dataset.gezeigt;
+  });
+
   function render() { header(); kpis(); dayChart(); plan(); month(); history(); }
 
   for (const b of document.querySelectorAll(".seg button")) b.addEventListener("click", () => {
@@ -623,7 +687,7 @@ footer a { color: inherit; }
   document.getElementById("day-today").addEventListener("click", () => selectDay(null));
   render();
   let resizeTimer;
-  addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { dayChart(); month(); history(); }, 200); });
+  addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { dayChart(); month(); history(); if (histDay) showHistDay(histDay); }, 200); });
   // Offene Seite alle 15 Minuten neu laden, damit "jetzt" und neue Daten stimmen
   setInterval(() => location.reload(), 15 * 60 * 1000);
 })();
