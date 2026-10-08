@@ -10,15 +10,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
-/* Layout: Leitstand-Tafel – Kopfzeile mit Stand, Kennzahlen-Leiste, dann Tageskurve, Planung, Monatsverlauf */
+/* Layout: Leitstand-Tafel – Kopfzeile mit Stand, Kennzahlen (jetzt / heute / morgen), dann Tageskurve, Planung, Monatsverlauf */
 :root {
   --bg: #f3f5f8;
   --panel: #ffffff;
   --ink: #14202e;
   --muted: #5d6b7c;
   --line: #dbe1e8;
-  --ch: #c8202f;
-  --at: #1f6fa8;
+  --price: #c8202f;
+  --price-fill: rgba(200, 32, 47, .10);
   --good: #1e8a5a;
   --warn: #b7791f;
   --font-display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
@@ -28,12 +28,12 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0e141b; --panel: #161e28; --ink: #e6ebf1; --muted: #93a1b2; --line: #263241;
-    --ch: #ef5a66; --at: #5aa9e0; --good: #4cc38a; --warn: #e0a84a; color-scheme: dark;
+    --price: #ef5a66; --price-fill: rgba(239, 90, 102, .14); --good: #4cc38a; --warn: #e0a84a; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0e141b; --panel: #161e28; --ink: #e6ebf1; --muted: #93a1b2; --line: #263241;
-  --ch: #ef5a66; --at: #5aa9e0; --good: #4cc38a; --warn: #e0a84a; color-scheme: dark;
+  --price: #ef5a66; --price-fill: rgba(239, 90, 102, .14); --good: #4cc38a; --warn: #e0a84a; color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
@@ -59,32 +59,28 @@ header p { margin: 4px 0 0; color: var(--muted); }
   border: 0; padding: 7px 12px; cursor: pointer;
 }
 .seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
-.seg button:focus-visible, select:focus-visible { outline: 2px solid var(--at); outline-offset: 2px; }
+.seg button:focus-visible, select:focus-visible { outline: 2px solid var(--price); outline-offset: 2px; }
 
 .stale { border: 1px solid var(--warn); color: var(--warn); border-radius: 8px; padding: 8px 12px; font-weight: 500; }
 
-.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
-.kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 6px; }
-.kpi .zone { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 600; font-size: 1.05rem; }
-.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 6px; align-content: start; }
 .kpi .big { font-family: var(--font-data); font-size: 2rem; font-weight: 600; line-height: 1.1; }
 .kpi .big small { font-size: .85rem; color: var(--muted); font-weight: 400; margin-left: 4px; }
 .kpi dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 4px 0 0; font-size: .88rem; }
 .kpi dt { color: var(--muted); }
 .kpi dd { margin: 0; text-align: right; font-family: var(--font-data); font-variant-numeric: tabular-nums; }
 .pill { justify-self: start; font-size: .75rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; }
-.pill.low { color: var(--good); } .pill.mid { color: var(--muted); } .pill.high { color: var(--ch); }
+.pill.low { color: var(--good); } .pill.mid { color: var(--muted); } .pill.high { color: var(--price); }
 
 section.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
 .panel-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; }
-.legend { display: flex; gap: 16px; font-size: .85rem; color: var(--muted); }
-.legend span { display: inline-flex; align-items: center; gap: 6px; }
 .chart { width: 100%; overflow-x: auto; }
 .chart svg { display: block; width: 100%; height: auto; }
 .chart text { fill: var(--muted); font: 11px var(--font-data); }
 .tip { font-family: var(--font-data); font-size: .85rem; min-height: 1.4em; color: var(--muted); }
 
-.plan { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.plan { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
 .plan .box { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: grid; gap: 4px; }
 .plan .when { font-family: var(--font-display); font-size: 1.4rem; font-weight: 600; }
 select { font: 500 .9rem var(--font-body); padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
@@ -96,6 +92,15 @@ th:first-child, td:first-child { text-align: left; }
 th { font-weight: 600; color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; }
 td { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
 
+.btn { font: 600 .85rem var(--font-body); padding: 7px 12px; border-radius: 8px; border: 1px solid var(--ink); background: var(--ink); color: var(--panel); cursor: pointer; }
+.btn:focus-visible { outline: 2px solid var(--price); outline-offset: 2px; }
+.hist-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 8px 16px; }
+.hist-stats div { display: grid; gap: 2px; }
+.hist-stats strong { font-family: var(--font-data); font-size: 1.25rem; font-weight: 600; }
+.hist-stats span.muted { font-size: .82rem; }
+tbody tr.klick { cursor: pointer; }
+tbody tr.klick:hover td { background: var(--bg); }
+
 footer { font-size: .8rem; color: var(--muted); display: grid; gap: 4px; }
 footer a { color: inherit; }
 @media (prefers-reduced-motion: no-preference) { .seg button { transition: background .15s, color .15s; } }
@@ -106,7 +111,7 @@ footer a { color: inherit; }
   <header>
     <div>
       <h1>Strombörse Liechtenstein</h1>
-      <p>EPEX Spot Schweiz und Day-Ahead Österreich · <span id="stand"></span></p>
+      <p>EPEX Spot Schweiz, Day-Ahead · <span id="stand"></span></p>
     </div>
     <div class="controls">
       <div class="seg" role="group" aria-label="Einheit">
@@ -123,7 +128,6 @@ footer a { color: inherit; }
   <section class="panel">
     <div class="panel-head">
       <h2 id="day-title">Heute und morgen</h2>
-      <div class="legend"><span><i class="dot" style="background:var(--ch)"></i>Schweiz</span><span><i class="dot" style="background:var(--at)"></i>Österreich</span></div>
     </div>
     <div class="chart" id="day-chart"></div>
     <div class="tip" id="day-tip">Über die Kurve fahren oder tippen, um einzelne Stunden zu sehen.</div>
@@ -141,11 +145,6 @@ footer a { color: inherit; }
           <option value="4">4 Stunden</option>
           <option value="6">6 Stunden</option>
         </select>
-        <label class="label" for="win-zone">Zone</label>
-        <select id="win-zone">
-          <option value="CH" selected>Schweiz</option>
-          <option value="AT">Österreich</option>
-        </select>
       </div>
     </div>
     <p class="muted" style="margin:0">Zum Planen von E-Auto-Laden, Wärmepumpe oder Batteriespeicher. Berücksichtigt nur Stunden ab jetzt.</p>
@@ -155,20 +154,40 @@ footer a { color: inherit; }
   <section class="panel">
     <div class="panel-head">
       <h2>Tagesdurchschnitt der letzten 30 Tage</h2>
-      <div class="legend"><span><i class="dot" style="background:var(--ch)"></i>Schweiz</span><span><i class="dot" style="background:var(--at)"></i>Österreich</span></div>
     </div>
     <div class="chart" id="month-chart"></div>
     <div class="tip" id="month-tip"></div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Tag</th><th>CH Base</th><th>CH Peak</th><th>CH min</th><th>CH max</th><th>AT Base</th><th>AT Peak</th><th>AT min</th><th>AT max</th><th>Differenz CH−AT</th></tr></thead>
+        <thead><tr><th>Tag</th><th>Base</th><th>Peak</th><th>Min</th><th>Max</th><th>Spanne</th></tr></thead>
         <tbody id="month-table"></tbody>
       </table>
     </div>
   </section>
 
+  <section class="panel" id="rueckblick">
+    <div class="panel-head">
+      <h2 id="hist-title">Rückblick</h2>
+      <div class="controls">
+        <label class="label" for="hist-period">Zeitraum</label>
+        <select id="hist-period"></select>
+        <button class="btn" id="hist-csv" type="button">CSV für Excel</button>
+      </div>
+    </div>
+    <div class="hist-stats" id="hist-stats"></div>
+    <div class="chart" id="hist-chart"></div>
+    <div class="tip" id="hist-tip">Über die Balken fahren oder tippen, um Werte zu sehen.</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th id="hist-col">Jahr</th><th>Base</th><th>Peak</th><th>Min</th><th>Max</th><th>Ø EUR/CHF</th></tr></thead>
+        <tbody id="hist-table"></tbody>
+      </table>
+    </div>
+  </section>
+
   <footer>
-    <div>Base = Durchschnitt aller Stunden des Tages. Peak = Durchschnitt Montag–Freitag, 08–20 Uhr (am Wochenende leer).</div>
+    <div>Base = Durchschnitt aller Stunden des Tages. Peak = Durchschnitt Montag–Freitag, 08–20 Uhr (am Wochenende leer). Spanne = Max − Min.</div>
+    <div>Im Rückblick ist Base/Peak eines Monats oder Jahres der Schnitt der Tageswerte. Rp./kWh werden mit dem EZB-Kurs des jeweiligen Tages umgerechnet.</div>
     <div>Grosshandelspreise ohne Netzentgelte, Abgaben und MWST. Endkundenpreise der LKW liegen deutlich höher.</div>
     <div>Daten: <a href="https://www.energy-charts.info" target="_blank" rel="noopener">Energy-Charts (Fraunhofer ISE)</a>, Lizenz CC BY 4.0 · Wechselkurs: EZB über frankfurter.dev, <span id="fx"></span></div>
   </footer>
@@ -179,10 +198,6 @@ footer a { color: inherit; }
 (function () {
   const D = JSON.parse(document.getElementById("daten").textContent);
   const TZ = "Europe/Zurich";
-  const ZONES = [
-    { id: "CH", name: "Schweiz", market: "EPEX Spot Schweiz", color: "var(--ch)" },
-    { id: "AT", name: "Österreich", market: "Day-Ahead Österreich", color: "var(--at)" }
-  ];
   let unit = "rp";
   try { unit = localStorage.getItem("unit") || "rp"; } catch (e) {}
 
@@ -191,7 +206,9 @@ footer a { color: inherit; }
   const fmtStamp = new Intl.DateTimeFormat("de-CH", { timeZone: TZ, dateStyle: "medium", timeStyle: "short" });
   const keyFmt = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" });
   const hourFmt = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", hourCycle: "h23" });
+  const wdFmt = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "short" });
   const dayKey = t => keyFmt.format(new Date(t * 1000));
+  const span = x => fmtTime.format(new Date(x.t * 1000)) + "–" + fmtTime.format(new Date(x.end * 1000));
 
   // Preis in gewählter Einheit: Rp./kWh = EUR/MWh × Kurs / 10
   const conv = v => unit === "rp" ? v * D.eurchf / 10 : v;
@@ -199,37 +216,32 @@ footer a { color: inherit; }
   const fmt = v => v == null || isNaN(v) ? "–" : conv(v).toLocaleString("de-CH", { minimumFractionDigits: unit === "rp" ? 2 : 1, maximumFractionDigits: unit === "rp" ? 2 : 1 });
 
   // Rohdaten → Liste {t, end, p}; Intervalllänge aus den Zeitstempeln (Stunde oder Viertelstunde)
-  const series = {};
-  for (const z of ZONES) {
-    const raw = D.zones[z.id];
-    const pts = [];
-    if (raw && raw.unix_seconds) {
-      const ts = raw.unix_seconds, ps = raw.price;
-      for (let i = 0; i < ts.length; i++) {
-        if (ps[i] == null) continue;
-        const step = i + 1 < ts.length ? ts[i + 1] - ts[i] : (i > 0 ? ts[i] - ts[i - 1] : 3600);
-        pts.push({ t: ts[i], end: ts[i] + step, p: ps[i] });
-      }
+  const series = [];
+  const raw = D.zones && D.zones.CH;
+  if (raw && raw.unix_seconds) {
+    const ts = raw.unix_seconds, ps = raw.price;
+    for (let i = 0; i < ts.length; i++) {
+      if (ps[i] == null) continue;
+      const step = i + 1 < ts.length ? ts[i + 1] - ts[i] : (i > 0 ? ts[i] - ts[i - 1] : 3600);
+      series.push({ t: ts[i], end: ts[i] + step, p: ps[i] });
     }
-    series[z.id] = pts;
   }
 
   const now = Date.now() / 1000;
   const todayKey = dayKey(now);
   const tomorrowKey = dayKey(now + 86400);
-  const byDay = (zid, key) => series[zid].filter(x => dayKey(x.t) === key);
+  const byDay = key => series.filter(x => dayKey(x.t) === key);
   const avg = arr => arr.length ? arr.reduce((s, x) => s + x.p * (x.end - x.t), 0) / arr.reduce((s, x) => s + (x.end - x.t), 0) : null;
   const min = arr => arr.length ? Math.min(...arr.map(x => x.p)) : null;
   const max = arr => arr.length ? Math.max(...arr.map(x => x.p)) : null;
   // Peak nach Börsendefinition: Montag–Freitag, 08:00–20:00 Uhr; am Wochenende kein Peak-Wert
-  const wdFmt = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "short" });
   const isPeak = t => !["Sat", "Sun"].includes(wdFmt.format(new Date(t * 1000))) && (h => h >= 8 && h < 20)(+hourFmt.format(new Date(t * 1000)));
   const peak = arr => avg(arr.filter(x => isPeak(x.t)));
 
   // Stündliche Werte (Viertelstunden zu Stunden mitteln)
-  function hourly(zid) {
+  function hourly() {
     const m = new Map();
-    for (const x of series[zid]) {
+    for (const x of series) {
       const h = x.t - (x.t % 3600);
       const e = m.get(h) || { t: h, end: h + 3600, sum: 0, n: 0 };
       e.sum += x.p; e.n++; m.set(h, e);
@@ -244,37 +256,34 @@ footer a { color: inherit; }
     const st = document.getElementById("stale");
     if (ageH > 26) {
       st.hidden = false;
-      st.textContent = "Diese Daten sind " + Math.round(ageH) + " Stunden alt. Läuft die automatische Aktualisierung? Sonst «aktualisieren.ps1» von Hand starten.";
+      st.textContent = "Diese Daten sind " + Math.round(ageH) + " Stunden alt. Die automatische Aktualisierung ist offenbar ausgefallen.";
     }
     for (const b of document.querySelectorAll(".seg button")) b.setAttribute("aria-pressed", String(b.dataset.unit === unit));
   }
 
+  function dayStats(arr) {
+    return '<dl>' +
+      '<dt>Peak</dt><dd>' + fmt(peak(arr)) + '</dd>' +
+      '<dt>Min / Max</dt><dd>' + fmt(min(arr)) + ' / ' + fmt(max(arr)) + '</dd>' +
+      '</dl>';
+  }
+
   function kpis() {
-    const el = document.getElementById("kpis");
-    el.innerHTML = "";
-    for (const z of ZONES) {
-      const cur = series[z.id].find(x => x.t <= now && now < x.end);
-      const today = byDay(z.id, todayKey), tom = byDay(z.id, tomorrowKey);
-      const tAvg = avg(today);
-      let cls = "mid", txt = "durchschnittlich";
-      if (cur && tAvg != null) {
-        if (cur.p < tAvg * 0.85) { cls = "low"; txt = "günstiger als der Tagesschnitt"; }
-        else if (cur.p > tAvg * 1.15) { cls = "high"; txt = "teurer als der Tagesschnitt"; }
-      }
-      const div = document.createElement("div");
-      div.className = "kpi";
-      div.innerHTML =
-        '<div class="zone"><i class="dot" style="background:' + z.color + '"></i>' + z.market + '</div>' +
-        '<div class="label">Jetzt' + (cur ? " (" + fmtTime.format(new Date(cur.t * 1000)) + "–" + fmtTime.format(new Date(cur.end * 1000)) + ")" : "") + '</div>' +
-        '<div class="big">' + (cur ? fmt(cur.p) : "–") + '<small>' + unitLabel() + '</small></div>' +
-        (cur ? '<span class="pill ' + cls + '">' + txt + '</span>' : '') +
-        '<dl>' +
-        '<dt>Heute Base / Peak</dt><dd>' + fmt(tAvg) + ' / ' + fmt(peak(today)) + '</dd>' +
-        '<dt>Heute min / max</dt><dd>' + fmt(min(today)) + ' / ' + fmt(max(today)) + '</dd>' +
-        '<dt>Morgen Base / Peak</dt><dd>' + (tom.length ? fmt(avg(tom)) + ' / ' + fmt(peak(tom)) : '<span class="muted">ab ca. 13 Uhr</span>') + '</dd>' +
-        '</dl>';
-      el.appendChild(div);
+    const cur = series.find(x => x.t <= now && now < x.end);
+    const today = byDay(todayKey), tom = byDay(tomorrowKey);
+    const tAvg = avg(today);
+    let cls = "mid", txt = "durchschnittlich";
+    if (cur && tAvg != null) {
+      if (cur.p < tAvg * 0.85) { cls = "low"; txt = "günstiger als der Tagesschnitt"; }
+      else if (cur.p > tAvg * 1.15) { cls = "high"; txt = "teurer als der Tagesschnitt"; }
     }
+    const big = v => '<div class="big">' + fmt(v) + '<small>' + unitLabel() + '</small></div>';
+    document.getElementById("kpis").innerHTML =
+      '<div class="kpi"><div class="label">Jetzt' + (cur ? " · " + span(cur) : "") + '</div>' +
+        big(cur ? cur.p : null) + (cur ? '<span class="pill ' + cls + '">' + txt + '</span>' : '') + '</div>' +
+      '<div class="kpi"><div class="label">Heute · Base</div>' + big(tAvg) + dayStats(today) + '</div>' +
+      '<div class="kpi"><div class="label">Morgen · Base</div>' +
+        (tom.length ? big(avg(tom)) + dayStats(tom) : '<div class="big">–</div><div class="muted">Die Auktion für morgen wird gegen Mittag veröffentlicht. Die Seite holt die Preise um ca. 13:45 Uhr.</div>') + '</div>';
   }
 
   const NS = "http://www.w3.org/2000/svg";
@@ -285,9 +294,9 @@ footer a { color: inherit; }
     return e;
   }
   function niceTicks(lo, hi, n) {
-    const span = hi - lo || 1;
-    const raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
-    const step = [1, 2, 2.5, 5, 10].map(s => s * mag).find(s => span / s <= n) || 10 * mag;
+    const range = hi - lo || 1;
+    const raw = range / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 2.5, 5, 10].map(s => s * mag).find(s => range / s <= n) || 10 * mag;
     const out = [];
     const top = Math.ceil(hi / step) * step;
     for (let v = Math.floor(lo / step) * step; v <= top + 1e-9; v += step) out.push(+v.toFixed(6));
@@ -298,17 +307,13 @@ footer a { color: inherit; }
     const host = document.getElementById("day-chart");
     host.innerHTML = "";
     const keys = [todayKey];
-    if (ZONES.some(z => byDay(z.id, tomorrowKey).length)) keys.push(tomorrowKey);
-    document.getElementById("day-title").textContent = keys.length > 1 ? "Heute und morgen" : "Heute (Preise für morgen ab ca. 13 Uhr)";
-    const data = {};
-    let t0 = Infinity, t1 = -Infinity, lo = Infinity, hi = -Infinity;
-    for (const z of ZONES) {
-      data[z.id] = series[z.id].filter(x => keys.includes(dayKey(x.t)));
-      for (const x of data[z.id]) { t0 = Math.min(t0, x.t); t1 = Math.max(t1, x.end); lo = Math.min(lo, conv(x.p)); hi = Math.max(hi, conv(x.p)); }
-    }
-    if (!isFinite(t0)) { host.textContent = "Keine Daten für heute vorhanden."; return; }
-    lo = Math.min(0, lo);
-    const ticks = niceTicks(lo, hi, 5);
+    if (byDay(tomorrowKey).length) keys.push(tomorrowKey);
+    document.getElementById("day-title").textContent = keys.length > 1 ? "Heute und morgen" : "Heute (Preise für morgen ab ca. 13:45 Uhr)";
+    const data = series.filter(x => keys.includes(dayKey(x.t)));
+    if (!data.length) { host.textContent = "Keine Daten für heute vorhanden."; return; }
+    const t0 = data[0].t, t1 = data[data.length - 1].end;
+    const vals = data.map(x => conv(x.p));
+    const ticks = niceTicks(Math.min(0, ...vals), Math.max(...vals), 5);
     const yMin = ticks[0], yMax = ticks[ticks.length - 1];
     const W = Math.max(300, host.clientWidth || 1000), H = W < 600 ? 230 : 320, L = 44, R = 8, T = 12, B = 30;
     const pxPerHour = (W - L - R) / ((t1 - t0) / 3600);
@@ -328,36 +333,37 @@ footer a { color: inherit; }
       if (h === 0 && t !== t0) svgEl("line", { x1: x(t), x2: x(t), y1: T, y2: H - B, stroke: "var(--muted)", "stroke-dasharray": "4 4" }, svg);
       svgEl("text", { x: x(t), y: H - 10, "text-anchor": anchor(x(t)) }, svg).textContent = h === 0 ? fmtDay.format(new Date(t * 1000)) : String(h).padStart(2, "0") + ":00";
     }
-    for (const z of ZONES) {
-      let d = "";
-      for (const p of data[z.id]) d += (d ? "L" : "M") + x(p.t).toFixed(1) + "," + y(conv(p.p)).toFixed(1) + "L" + x(p.end).toFixed(1) + "," + y(conv(p.p)).toFixed(1);
-      svgEl("path", { d, fill: "none", stroke: z.color, "stroke-width": 2, "stroke-linejoin": "round" }, svg);
-    }
+    // Treppenkurve mit Fläche darunter
+    let d = "";
+    for (const p of data) d += (d ? "L" : "M") + x(p.t).toFixed(1) + "," + y(conv(p.p)).toFixed(1) + "L" + x(p.end).toFixed(1) + "," + y(conv(p.p)).toFixed(1);
+    const base = y(Math.max(0, yMin)).toFixed(1);
+    svgEl("path", { d: d + "L" + x(t1).toFixed(1) + "," + base + "L" + x(t0).toFixed(1) + "," + base + "Z", fill: "var(--price-fill)", stroke: "none" }, svg);
+    svgEl("path", { d, fill: "none", stroke: "var(--price)", "stroke-width": 2, "stroke-linejoin": "round" }, svg);
     if (now >= t0 && now <= t1) {
       svgEl("line", { x1: x(now), x2: x(now), y1: T, y2: H - B, stroke: "var(--ink)", "stroke-width": 1.5 }, svg);
       svgEl("text", { x: x(now) + 4, y: T + 10, style: "fill:var(--ink)" }, svg).textContent = "jetzt";
     }
     const cursor = svgEl("line", { x1: 0, x2: 0, y1: T, y2: H - B, stroke: "var(--muted)", opacity: 0 }, svg);
+    const dot = svgEl("circle", { r: 4, fill: "var(--price)", stroke: "var(--panel)", "stroke-width": 2, opacity: 0 }, svg);
     const tip = document.getElementById("day-tip");
     svg.addEventListener("pointermove", ev => {
       const r = svg.getBoundingClientRect();
       const t = t0 + ((ev.clientX - r.left) / r.width * W - L) / (W - L - R) * (t1 - t0);
-      if (t < t0 || t > t1) return;
+      const p = data.find(q => q.t <= t && t < q.end);
+      if (!p) return;
       cursor.setAttribute("x1", x(t)); cursor.setAttribute("x2", x(t)); cursor.setAttribute("opacity", 1);
-      const parts = ZONES.map(z => { const p = data[z.id].find(q => q.t <= t && t < q.end); return z.name + " " + (p ? fmt(p.p) : "–"); });
-      const ref = data.CH.find(q => q.t <= t && t < q.end) || data.AT.find(q => q.t <= t && t < q.end);
-      tip.textContent = (ref ? fmtDay.format(new Date(ref.t * 1000)) + " " + fmtTime.format(new Date(ref.t * 1000)) + "–" + fmtTime.format(new Date(ref.end * 1000)) + " · " : "") + parts.join(" · ") + " " + unitLabel();
+      dot.setAttribute("cx", x(t)); dot.setAttribute("cy", y(conv(p.p))); dot.setAttribute("opacity", 1);
+      tip.textContent = fmtDay.format(new Date(p.t * 1000)) + " " + span(p) + " · " + fmt(p.p) + " " + unitLabel();
     });
-    svg.addEventListener("pointerleave", () => cursor.setAttribute("opacity", 0));
+    svg.addEventListener("pointerleave", () => { cursor.setAttribute("opacity", 0); dot.setAttribute("opacity", 0); });
   }
 
   function plan() {
     const len = +document.getElementById("win-len").value;
-    const zid = document.getElementById("win-zone").value;
-    const hrs = hourly(zid).filter(h => h.end > now);
+    const hrs = hourly().filter(h => h.end > now);
     const el = document.getElementById("plan");
     el.innerHTML = "";
-    if (hrs.length < len) { el.innerHTML = '<p class="muted">Zu wenige zukünftige Stunden vorhanden. Die Preise für morgen erscheinen ab ca. 13 Uhr.</p>'; return; }
+    if (hrs.length < len) { el.innerHTML = '<p class="muted">Zu wenige zukünftige Stunden vorhanden. Die Preise für morgen erscheinen um ca. 13:45 Uhr.</p>'; return; }
     const wins = [];
     for (let i = 0; i + len <= hrs.length; i++) {
       const s = hrs.slice(i, i + len);
@@ -368,7 +374,7 @@ footer a { color: inherit; }
     const best = wins[0], worst = wins[wins.length - 1];
     const allAvg = hrs.reduce((a, b) => a + b.p, 0) / hrs.length;
     const box = (title, w, note) =>
-      '<div class="box"><div class="label">' + title + '</div><div class="when">' + fmtDay.format(new Date(w.t * 1000)) + ", " + fmtTime.format(new Date(w.t * 1000)) + "–" + fmtTime.format(new Date(w.end * 1000)) +
+      '<div class="box"><div class="label">' + title + '</div><div class="when">' + fmtDay.format(new Date(w.t * 1000)) + ", " + span(w) +
       '</div><div class="num">Ø ' + fmt(w.p) + " " + unitLabel() + '</div><div class="muted">' + note + '</div></div>';
     el.innerHTML =
       box("Am günstigsten", best, Math.round((1 - best.p / allAvg) * 100) + " % unter dem Schnitt der kommenden Stunden") +
@@ -378,22 +384,18 @@ footer a { color: inherit; }
 
   function month() {
     const days = {};
-    for (const z of ZONES) for (const x of series[z.id]) {
-      const k = dayKey(x.t);
-      (days[k] = days[k] || { CH: [], AT: [] })[z.id].push(x);
-    }
-    const keys = Object.keys(days).sort().filter(k => k <= todayKey).slice(-30);
-    const rows = keys.map(k => ({ k, t: days[k].CH[0]?.t || days[k].AT[0]?.t, CH: days[k].CH, AT: days[k].AT }));
+    for (const x of series) (days[dayKey(x.t)] = days[dayKey(x.t)] || []).push(x);
+    const rows = Object.keys(days).sort().filter(k => k <= todayKey).slice(-30).map(k => ({ k, t: days[k][0].t, pts: days[k] }));
 
     const host = document.getElementById("month-chart");
     host.innerHTML = "";
-    const vals = rows.flatMap(r => [avg(r.CH), avg(r.AT)]).filter(v => v != null).map(conv);
-    if (!vals.length) { host.textContent = "Keine Verlaufsdaten vorhanden."; return; }
+    if (!rows.length) { host.textContent = "Keine Verlaufsdaten vorhanden."; return; }
+    const vals = rows.map(r => conv(avg(r.pts)));
     const ticks = niceTicks(Math.min(0, ...vals), Math.max(...vals), 4);
     const yMin = ticks[0], yMax = ticks[ticks.length - 1];
     const W = Math.max(300, host.clientWidth || 1000), H = W < 600 ? 180 : 240, L = 44, R = 8, T = 12, B = 30;
-    const lStep = [5, 7, 10, 15].find(s => (W - L - R) / rows.length * s >= 90) || 30;
     const bw = (W - L - R) / rows.length;
+    const lStep = [5, 7, 10, 15].find(s => bw * s >= 90) || 30;
     const y = v => T + (1 - (v - yMin) / (yMax - yMin)) * (H - T - B);
     const svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Tagesdurchschnitte der letzten 30 Tage" }, host);
     for (const v of ticks) {
@@ -402,30 +404,135 @@ footer a { color: inherit; }
     }
     const tip = document.getElementById("month-tip");
     rows.forEach((r, i) => {
-      const x0 = L + i * bw;
-      ZONES.forEach((z, j) => {
-        const a = avg(r[z.id]);
-        if (a == null) return;
-        const v = conv(a), w = bw * 0.36;
-        svgEl("rect", { x: x0 + bw * 0.12 + j * w, y: Math.min(y(v), y(0)), width: w, height: Math.max(1, Math.abs(y(0) - y(v))), fill: z.color, rx: 1.5 }, svg);
-      });
-      if (i % lStep === (rows.length - 1) % lStep) svgEl("text", { x: i === rows.length - 1 ? x0 + bw : x0 + bw / 2, y: H - 10, "text-anchor": i === rows.length - 1 ? "end" : "middle" }, svg).textContent = fmtDay.format(new Date(r.t * 1000));
+      const x0 = L + i * bw, v = vals[i], last = i === rows.length - 1;
+      svgEl("rect", { x: x0 + bw * 0.15, y: Math.min(y(v), y(0)), width: bw * 0.7, height: Math.max(1, Math.abs(y(0) - y(v))), fill: "var(--price)", opacity: last ? 1 : 0.75, rx: 1.5 }, svg);
+      if (i % lStep === (rows.length - 1) % lStep) svgEl("text", { x: last ? x0 + bw : x0 + bw / 2, y: H - 10, "text-anchor": last ? "end" : "middle" }, svg).textContent = fmtDay.format(new Date(r.t * 1000));
       const hit = svgEl("rect", { x: x0, y: T, width: bw, height: H - T - B, fill: "transparent" }, svg);
       hit.addEventListener("pointerenter", () => {
-        tip.textContent = fmtDay.format(new Date(r.t * 1000)) + " · Schweiz Ø " + fmt(avg(r.CH)) + " · Österreich Ø " + fmt(avg(r.AT)) + " " + unitLabel();
+        tip.textContent = fmtDay.format(new Date(r.t * 1000)) + " · Base " + fmt(avg(r.pts)) + " · Peak " + fmt(peak(r.pts)) + " " + unitLabel();
       });
     });
 
-    const tb = document.getElementById("month-table");
-    tb.innerHTML = rows.slice().reverse().map(r => {
-      const c = avg(r.CH), a = avg(r.AT);
-      const diff = c != null && a != null ? c - a : null;
-      return "<tr><td>" + fmtDay.format(new Date(r.t * 1000)) + (r.k === todayKey ? " (heute)" : "") + "</td><td>" + fmt(c) + "</td><td>" + fmt(peak(r.CH)) + "</td><td>" + fmt(min(r.CH)) + "</td><td>" + fmt(max(r.CH)) +
-        "</td><td>" + fmt(a) + "</td><td>" + fmt(peak(r.AT)) + "</td><td>" + fmt(min(r.AT)) + "</td><td>" + fmt(max(r.AT)) + "</td><td>" + (diff == null ? "–" : (diff > 0 ? "+" : "") + fmt(diff)) + "</td></tr>";
+    document.getElementById("month-table").innerHTML = rows.slice().reverse().map(r => {
+      const lo = min(r.pts), hi = max(r.pts);
+      return "<tr><td>" + fmtDay.format(new Date(r.t * 1000)) + (r.k === todayKey ? " (heute)" : "") + "</td><td>" + fmt(avg(r.pts)) + "</td><td>" + fmt(peak(r.pts)) +
+        "</td><td>" + fmt(lo) + "</td><td>" + fmt(hi) + "</td><td>" + fmt(hi - lo) + "</td></tr>";
     }).join("");
   }
 
-  function render() { header(); kpis(); dayChart(); plan(); month(); }
+  // ---- Rückblick seit 2015: Tageszeilen [Tag, Base, Peak, Min, Max, EUR/CHF] in EUR/MWh ----
+  const HIST = (D.verlauf || []).map(r => ({ k: r[0], base: r[1], peak: r[2], min: r[3], max: r[4], fx: r[5] }));
+  const MONATE = ["Jan.", "Feb.", "März", "Apr.", "Mai", "Juni", "Juli", "Aug.", "Sep.", "Okt.", "Nov.", "Dez."];
+  const cv = (v, fx) => v == null ? null : unit === "rp" ? v * (fx || D.eurchf) / 10 : v;
+  const fmtC = v => v == null || isNaN(v) ? "–" : v.toLocaleString("de-CH", { minimumFractionDigits: unit === "rp" ? 2 : 1, maximumFractionDigits: unit === "rp" ? 2 : 1 });
+  const mean = a => { const b = a.filter(v => v != null); return b.length ? b.reduce((s, v) => s + v, 0) / b.length : null; };
+  const dayLabel = k => +k.slice(8, 10) + ". " + MONATE[+k.slice(5, 7) - 1] + " " + k.slice(0, 4);
+  function summary(rows) {
+    const mins = rows.map(r => cv(r.min, r.fx)).filter(v => v != null), maxs = rows.map(r => cv(r.max, r.fx)).filter(v => v != null);
+    return {
+      base: mean(rows.map(r => cv(r.base, r.fx))), peak: mean(rows.map(r => cv(r.peak, r.fx))),
+      min: mins.length ? Math.min(...mins) : null, max: maxs.length ? Math.max(...maxs) : null, fx: mean(rows.map(r => r.fx))
+    };
+  }
+  function groupBy(rows, keyFn) {
+    const m = new Map();
+    for (const r of rows) { const k = keyFn(r); if (!m.has(k)) m.set(k, []); m.get(k).push(r); }
+    return [...m.entries()].map(([k, rs]) => ({ k, rows: rs }));
+  }
+
+  const periodSel = document.getElementById("hist-period");
+  const jahre = [...new Set(HIST.map(r => r.k.slice(0, 4)))].sort().reverse();
+  periodSel.innerHTML = '<option value="alle">Alle Jahre</option>' + jahre.map(j => '<option value="' + j + '">' + j + '</option>').join("");
+  if (!HIST.length) document.getElementById("rueckblick").hidden = true;
+
+  function histRows() { const p = periodSel.value; return p === "alle" ? HIST : HIST.filter(r => r.k.startsWith(p)); }
+
+  function history() {
+    if (!HIST.length) return;
+    const p = periodSel.value, rows = histRows();
+    const alle = p === "alle";
+    document.getElementById("hist-title").textContent = alle ? "Rückblick seit " + HIST[0].k.slice(0, 4) : "Rückblick " + p;
+
+    // Kennzahlen des Zeitraums
+    const s = summary(rows);
+    const withBase = rows.filter(r => r.base != null);
+    const cheap = withBase.reduce((a, b) => cv(b.base, b.fx) < cv(a.base, a.fx) ? b : a, withBase[0]);
+    const dear = withBase.reduce((a, b) => cv(b.base, b.fx) > cv(a.base, a.fx) ? b : a, withBase[0]);
+    document.getElementById("hist-stats").innerHTML =
+      '<div><span class="label">Base Ø</span><strong>' + fmtC(s.base) + '</strong><span class="muted">' + unitLabel() + '</span></div>' +
+      '<div><span class="label">Peak Ø</span><strong>' + fmtC(s.peak) + '</strong><span class="muted">' + unitLabel() + '</span></div>' +
+      '<div><span class="label">Günstigster Tag</span><strong>' + fmtC(cv(cheap.base, cheap.fx)) + '</strong><span class="muted">' + dayLabel(cheap.k) + '</span></div>' +
+      '<div><span class="label">Teuerster Tag</span><strong>' + fmtC(cv(dear.base, dear.fx)) + '</strong><span class="muted">' + dayLabel(dear.k) + '</span></div>';
+
+    // Balken: bei "Alle Jahre" Monatswerte, bei einem Jahr Tageswerte
+    const items = alle
+      ? groupBy(rows, r => r.k.slice(0, 7)).map(g => ({ v: summary(g.rows).base, group: g.k.slice(0, 4), text: MONATE[+g.k.slice(5, 7) - 1] + " " + g.k.slice(0, 4) + " · Base " + fmtC(summary(g.rows).base) + " · Peak " + fmtC(summary(g.rows).peak) }))
+      : rows.map(r => ({ v: cv(r.base, r.fx), group: MONATE[+r.k.slice(5, 7) - 1], text: dayLabel(r.k) + " · Base " + fmtC(cv(r.base, r.fx)) + " · Peak " + fmtC(cv(r.peak, r.fx)) + " · Min " + fmtC(cv(r.min, r.fx)) + " · Max " + fmtC(cv(r.max, r.fx)) }));
+    const host = document.getElementById("hist-chart");
+    host.innerHTML = "";
+    const vals = items.map(i => i.v).filter(v => v != null);
+    const ticks = niceTicks(Math.min(0, ...vals), Math.max(...vals), 4);
+    const yMin = ticks[0], yMax = ticks[ticks.length - 1];
+    const W = Math.max(300, host.clientWidth || 1000), H = W < 600 ? 190 : 260, L = 44, R = 8, T = 12, B = 30;
+    const bw = (W - L - R) / items.length;
+    const y = v => T + (1 - (v - yMin) / (yMax - yMin)) * (H - T - B);
+    const svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Rückblick Strompreise" }, host);
+    for (const v of ticks) {
+      svgEl("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: "var(--line)" }, svg);
+      svgEl("text", { x: L - 8, y: y(v) + 4, "text-anchor": "end" }, svg).textContent = v.toLocaleString("de-CH");
+    }
+    const tip = document.getElementById("hist-tip");
+    let lastLabelX = -Infinity;
+    items.forEach((it, i) => {
+      const x0 = L + i * bw;
+      if (it.v != null) svgEl("rect", { x: x0 + bw * 0.1, y: Math.min(y(it.v), y(0)), width: Math.max(0.8, bw * 0.8), height: Math.max(1, Math.abs(y(0) - y(it.v))), fill: "var(--price)", opacity: 0.8 }, svg);
+      if (i === 0 || items[i - 1].group !== it.group) {
+        svgEl("line", { x1: x0, x2: x0, y1: H - B, y2: H - B + 4, stroke: "var(--muted)" }, svg);
+        if (x0 - lastLabelX >= (alle ? 34 : 38) && x0 < W - R - 20) {
+          svgEl("text", { x: x0 + 2, y: H - 10, "text-anchor": "start" }, svg).textContent = it.group;
+          lastLabelX = x0;
+        }
+      }
+      const hit = svgEl("rect", { x: x0, y: T, width: Math.max(bw, 1), height: H - T - B, fill: "transparent" }, svg);
+      hit.addEventListener("pointerenter", () => { tip.textContent = it.text + " " + unitLabel(); });
+    });
+
+    // Tabelle: bei "Alle Jahre" je Jahr (anklickbar), sonst je Monat
+    document.getElementById("hist-col").textContent = alle ? "Jahr" : "Monat";
+    const groups = alle ? groupBy(rows, r => r.k.slice(0, 4)).reverse() : groupBy(rows, r => r.k.slice(0, 7)).reverse();
+    document.getElementById("hist-table").innerHTML = groups.map(g => {
+      const t = summary(g.rows);
+      const name = alle ? g.k + (g.rows.length < 365 ? " (bis " + dayLabel(g.rows[g.rows.length - 1].k).replace(/ \d{4}$/, "") + ")" : "") : MONATE[+g.k.slice(5, 7) - 1] + " " + g.k.slice(0, 4);
+      return '<tr' + (alle ? ' class="klick" data-jahr="' + g.k + '"' : '') + '><td>' + name + '</td><td>' + fmtC(t.base) + '</td><td>' + fmtC(t.peak) + '</td><td>' + fmtC(t.min) + '</td><td>' + fmtC(t.max) + '</td><td>' + (t.fx ? t.fx.toFixed(4) : "–") + '</td></tr>';
+    }).join("");
+  }
+
+  document.getElementById("hist-table").addEventListener("click", ev => {
+    const tr = ev.target.closest("tr[data-jahr]");
+    if (!tr) return;
+    periodSel.value = tr.dataset.jahr;
+    history();
+    document.getElementById("rueckblick").scrollIntoView({ behavior: "smooth" });
+  });
+
+  // CSV mit Tageswerten des gewählten Zeitraums (Semikolon, Dezimalpunkt – passt zu Excel Schweiz)
+  document.getElementById("hist-csv").addEventListener("click", () => {
+    const n = v => v == null ? "" : (+v).toFixed(3);
+    const lines = ["Datum;Base EUR/MWh;Peak EUR/MWh;Min EUR/MWh;Max EUR/MWh;EUR/CHF;Base Rp/kWh;Peak Rp/kWh"];
+    for (const r of histRows()) {
+      const fx = r.fx || D.eurchf;
+      lines.push([r.k, n(r.base), n(r.peak), n(r.min), n(r.max), r.fx ? r.fx.toFixed(4) : "", n(r.base * fx / 10), r.peak == null ? "" : n(r.peak * fx / 10)].join(";"));
+    }
+    const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "epex-spot-schweiz-" + periodSel.value + ".csv";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  periodSel.addEventListener("change", history);
+
+  function render() { header(); kpis(); dayChart(); plan(); month(); history(); }
 
   for (const b of document.querySelectorAll(".seg button")) b.addEventListener("click", () => {
     unit = b.dataset.unit;
@@ -433,11 +540,10 @@ footer a { color: inherit; }
     render();
   });
   document.getElementById("win-len").addEventListener("change", plan);
-  document.getElementById("win-zone").addEventListener("change", plan);
   render();
   let resizeTimer;
-  addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { dayChart(); month(); }, 200); });
-  // Seite bleibt offen: Kennzahlen jede Viertelstunde neu berechnen, Datei neu laden, falls aktualisiert
+  addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { dayChart(); month(); history(); }, 200); });
+  // Offene Seite alle 15 Minuten neu laden, damit "jetzt" und neue Daten stimmen
   setInterval(() => location.reload(), 15 * 60 * 1000);
 })();
 </script>

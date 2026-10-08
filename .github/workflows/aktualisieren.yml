@@ -44,14 +44,12 @@ jobs:
       - id: deploy
         uses: actions/deploy-pages@v4
 
-      # GitHub pausiert geplante Abläufe nach 60 Tagen ohne Änderung im Repository.
-      # Ein kleiner täglicher Eintrag hält den Ablauf aktiv.
-      - name: Stand festhalten
-        if: github.event_name == 'schedule'
+      # Den ergänzten Verlauf speichern. Das tägliche Speichern hält zugleich den geplanten
+      # Ablauf aktiv (GitHub pausiert ihn sonst nach 60 Tagen ohne Änderung).
+      - name: Verlauf speichern
         run: |
-          date -u +"%Y-%m-%dT%H:%M:%SZ" > stand.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add stand.txt
-          git commit -m "Stand $(date -u +%Y-%m-%d)" || exit 0
+          git add verlauf.json
+          git commit -m "Verlauf bis $(date -u +%Y-%m-%d)" || exit 0
           git push
