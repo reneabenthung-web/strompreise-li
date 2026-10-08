@@ -80,7 +80,7 @@ section.panel { background: var(--panel); border: 1px solid var(--line); border-
 .legend { display: flex; gap: 16px; font-size: .85rem; color: var(--muted); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .chart { width: 100%; overflow-x: auto; }
-.chart svg { display: block; width: 100%; height: auto; min-width: 560px; }
+.chart svg { display: block; width: 100%; height: auto; }
 .chart text { fill: var(--muted); font: 11px var(--font-data); }
 .tip { font-family: var(--font-data); font-size: .85rem; min-height: 1.4em; color: var(--muted); }
 
@@ -126,7 +126,7 @@ footer a { color: inherit; }
       <div class="legend"><span><i class="dot" style="background:var(--ch)"></i>Schweiz</span><span><i class="dot" style="background:var(--at)"></i>Österreich</span></div>
     </div>
     <div class="chart" id="day-chart"></div>
-    <div class="tip" id="day-tip">Mit der Maus über die Kurve fahren, um einzelne Stunden zu sehen.</div>
+    <div class="tip" id="day-tip">Über die Kurve fahren oder tippen, um einzelne Stunden zu sehen.</div>
   </section>
 
   <section class="panel">
@@ -310,20 +310,23 @@ footer a { color: inherit; }
     lo = Math.min(0, lo);
     const ticks = niceTicks(lo, hi, 5);
     const yMin = ticks[0], yMax = ticks[ticks.length - 1];
-    const W = 1000, H = 320, L = 52, R = 12, T = 12, B = 30;
+    const W = Math.max(300, host.clientWidth || 1000), H = W < 600 ? 230 : 320, L = 44, R = 8, T = 12, B = 30;
+    const pxPerHour = (W - L - R) / ((t1 - t0) / 3600);
+    const hStep = [3, 6, 12].find(s => pxPerHour * s >= 70) || 24; // Beschriftungen mit genug Abstand
     const x = t => L + (t - t0) / (t1 - t0) * (W - L - R);
+    const anchor = px => px < L + 40 ? "start" : px > W - R - 40 ? "end" : "middle";
     const y = v => T + (1 - (v - yMin) / (yMax - yMin)) * (H - T - B);
     const svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Preisverlauf heute und morgen" }, host);
     for (const v of ticks) {
       svgEl("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: "var(--line)", "stroke-width": v === 0 ? 1.5 : 1 }, svg);
       svgEl("text", { x: L - 8, y: y(v) + 4, "text-anchor": "end" }, svg).textContent = v.toLocaleString("de-CH");
     }
-    // Stundenmarken alle 3 h, Tagesgrenze hervorgehoben
+    // Stundenmarken je nach Bildschirmbreite, Tagesgrenze hervorgehoben
     for (let t = t0; t <= t1; t += 3600) {
       const h = +hourFmt.format(new Date(t * 1000));
-      if (h % 3 !== 0) continue;
+      if (h % hStep !== 0) continue;
       if (h === 0 && t !== t0) svgEl("line", { x1: x(t), x2: x(t), y1: T, y2: H - B, stroke: "var(--muted)", "stroke-dasharray": "4 4" }, svg);
-      svgEl("text", { x: x(t), y: H - 10, "text-anchor": "middle" }, svg).textContent = h === 0 ? fmtDay.format(new Date(t * 1000)) : String(h).padStart(2, "0") + ":00";
+      svgEl("text", { x: x(t), y: H - 10, "text-anchor": anchor(x(t)) }, svg).textContent = h === 0 ? fmtDay.format(new Date(t * 1000)) : String(h).padStart(2, "0") + ":00";
     }
     for (const z of ZONES) {
       let d = "";
@@ -388,7 +391,8 @@ footer a { color: inherit; }
     if (!vals.length) { host.textContent = "Keine Verlaufsdaten vorhanden."; return; }
     const ticks = niceTicks(Math.min(0, ...vals), Math.max(...vals), 4);
     const yMin = ticks[0], yMax = ticks[ticks.length - 1];
-    const W = 1000, H = 240, L = 52, R = 12, T = 12, B = 30;
+    const W = Math.max(300, host.clientWidth || 1000), H = W < 600 ? 180 : 240, L = 44, R = 8, T = 12, B = 30;
+    const lStep = [5, 7, 10, 15].find(s => (W - L - R) / rows.length * s >= 90) || 30;
     const bw = (W - L - R) / rows.length;
     const y = v => T + (1 - (v - yMin) / (yMax - yMin)) * (H - T - B);
     const svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Tagesdurchschnitte der letzten 30 Tage" }, host);
@@ -405,7 +409,7 @@ footer a { color: inherit; }
         const v = conv(a), w = bw * 0.36;
         svgEl("rect", { x: x0 + bw * 0.12 + j * w, y: Math.min(y(v), y(0)), width: w, height: Math.max(1, Math.abs(y(0) - y(v))), fill: z.color, rx: 1.5 }, svg);
       });
-      if (i % 5 === (rows.length - 1) % 5) svgEl("text", { x: x0 + bw / 2, y: H - 10, "text-anchor": "middle" }, svg).textContent = fmtDay.format(new Date(r.t * 1000));
+      if (i % lStep === (rows.length - 1) % lStep) svgEl("text", { x: i === rows.length - 1 ? x0 + bw : x0 + bw / 2, y: H - 10, "text-anchor": i === rows.length - 1 ? "end" : "middle" }, svg).textContent = fmtDay.format(new Date(r.t * 1000));
       const hit = svgEl("rect", { x: x0, y: T, width: bw, height: H - T - B, fill: "transparent" }, svg);
       hit.addEventListener("pointerenter", () => {
         tip.textContent = fmtDay.format(new Date(r.t * 1000)) + " · Schweiz Ø " + fmt(avg(r.CH)) + " · Österreich Ø " + fmt(avg(r.AT)) + " " + unitLabel();
@@ -431,6 +435,8 @@ footer a { color: inherit; }
   document.getElementById("win-len").addEventListener("change", plan);
   document.getElementById("win-zone").addEventListener("change", plan);
   render();
+  let resizeTimer;
+  addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { dayChart(); month(); }, 200); });
   // Seite bleibt offen: Kennzahlen jede Viertelstunde neu berechnen, Datei neu laden, falls aktualisiert
   setInterval(() => location.reload(), 15 * 60 * 1000);
 })();
