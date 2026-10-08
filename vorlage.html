@@ -61,6 +61,13 @@ header p { margin: 4px 0 0; color: var(--muted); }
 .seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
 .seg button:focus-visible, select:focus-visible { outline: 2px solid var(--price); outline-offset: 2px; }
 
+.info { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; font-size: .92rem; }
+.info summary { cursor: pointer; font-weight: 600; color: var(--ink); }
+.info summary:focus-visible { outline: 2px solid var(--price); outline-offset: 2px; }
+.info dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 12px 0 0; }
+.info dt { font-family: var(--font-display); font-weight: 600; }
+.info dd { margin: 0; }
+.info p { margin: 10px 0 0; color: var(--muted); max-width: 70ch; }
 .stale { border: 1px solid var(--warn); color: var(--warn); border-radius: 8px; padding: 8px 12px; font-weight: 500; }
 
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
@@ -124,6 +131,17 @@ footer a { color: inherit; }
   <div id="stale" class="stale" hidden></div>
 
   <div class="kpis" id="kpis"></div>
+
+  <details class="info" id="info-base-peak">
+    <summary>Was bedeuten Base und Peak?</summary>
+    <dl>
+      <dt>Base</dt>
+      <dd>Durchschnittspreis über alle 24 Stunden eines Tages.</dd>
+      <dt>Peak</dt>
+      <dd>Durchschnittspreis zu den Hauptlastzeiten: Montag bis Freitag, 8 bis 20 Uhr. In diesen Stunden brauchen Industrie, Gewerbe und Büros am meisten Strom. Am Wochenende gibt es keinen Peak-Wert («–»).</dd>
+    </dl>
+    <p>Base und Peak sind die Standardprodukte im Stromhandel. Energieversorger kaufen Strom oft als Base-Band (rund um die Uhr gleich viel) und zusätzlich als Peak-Band (werktags tagsüber). Liegt Peak über Base, ist Strom tagsüber teurer als nachts. Mit viel Solarstrom kann Peak auch unter Base liegen, weil der Mittag dann am günstigsten ist.</p>
+  </details>
 
   <section class="panel">
     <div class="panel-head">
