@@ -177,7 +177,7 @@ footer a { color: inherit; }
     <div class="tip" id="month-tip"></div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Tag</th><th>Base</th><th>Peak</th><th>Min</th><th>Max</th><th>Spanne</th></tr></thead>
+        <thead><tr><th>Tag</th><th>Base</th><th>Peak</th><th>Min</th><th>Max</th><th>Spanne</th><th>EUR/CHF</th></tr></thead>
         <tbody id="month-table"></tbody>
       </table>
     </div>
@@ -226,9 +226,12 @@ footer a { color: inherit; }
   const span = x => fmtTime.format(new Date(x.t * 1000)) + "–" + fmtTime.format(new Date(x.end * 1000));
 
   // Preis in gewählter Einheit: Rp./kWh = EUR/MWh × Kurs / 10
-  const conv = v => unit === "rp" ? v * D.eurchf / 10 : v;
+  // Kurs je Tag aus dem Verlauf (EZB); für heute und morgen gilt der neueste Kurs
+  const FXDAY = Object.fromEntries((D.verlauf || []).map(r => [r[0], r[5]]));
+  const fxOf = k => FXDAY[k] || D.eurchf;
+  const conv = (v, fx) => unit === "rp" ? v * (fx || D.eurchf) / 10 : v;
   const unitLabel = () => unit === "rp" ? "Rp./kWh" : "EUR/MWh";
-  const fmt = v => v == null || isNaN(v) ? "–" : conv(v).toLocaleString("de-CH", { minimumFractionDigits: unit === "rp" ? 2 : 1, maximumFractionDigits: unit === "rp" ? 2 : 1 });
+  const fmt = (v, fx) => v == null || isNaN(v) ? "–" : conv(v, fx).toLocaleString("de-CH", { minimumFractionDigits: unit === "rp" ? 2 : 1, maximumFractionDigits: unit === "rp" ? 2 : 1 });
 
   // Rohdaten → Liste {t, end, p}; Intervalllänge aus den Zeitstempeln (Stunde oder Viertelstunde)
   const series = [];
@@ -405,7 +408,7 @@ footer a { color: inherit; }
     const host = document.getElementById("month-chart");
     host.innerHTML = "";
     if (!rows.length) { host.textContent = "Keine Verlaufsdaten vorhanden."; return; }
-    const vals = rows.map(r => conv(avg(r.pts)));
+    const vals = rows.map(r => conv(avg(r.pts), fxOf(r.k)));
     const ticks = niceTicks(Math.min(0, ...vals), Math.max(...vals), 4);
     const yMin = ticks[0], yMax = ticks[ticks.length - 1];
     const W = Math.max(300, host.clientWidth || 1000), H = W < 600 ? 180 : 240, L = 44, R = 8, T = 12, B = 30;
@@ -424,14 +427,14 @@ footer a { color: inherit; }
       if (i % lStep === (rows.length - 1) % lStep) svgEl("text", { x: last ? x0 + bw : x0 + bw / 2, y: H - 10, "text-anchor": last ? "end" : "middle" }, svg).textContent = fmtDay.format(new Date(r.t * 1000));
       const hit = svgEl("rect", { x: x0, y: T, width: bw, height: H - T - B, fill: "transparent" }, svg);
       hit.addEventListener("pointerenter", () => {
-        tip.textContent = fmtDay.format(new Date(r.t * 1000)) + " · Base " + fmt(avg(r.pts)) + " · Peak " + fmt(peak(r.pts)) + " " + unitLabel();
+        tip.textContent = fmtDay.format(new Date(r.t * 1000)) + " · Base " + fmt(avg(r.pts), fxOf(r.k)) + " · Peak " + fmt(peak(r.pts), fxOf(r.k)) + " " + unitLabel() + (unit === "rp" ? " · 1 EUR = " + fxOf(r.k).toFixed(4) + " CHF" : "");
       });
     });
 
     document.getElementById("month-table").innerHTML = rows.slice().reverse().map(r => {
-      const lo = min(r.pts), hi = max(r.pts);
-      return "<tr><td>" + fmtDay.format(new Date(r.t * 1000)) + (r.k === todayKey ? " (heute)" : "") + "</td><td>" + fmt(avg(r.pts)) + "</td><td>" + fmt(peak(r.pts)) +
-        "</td><td>" + fmt(lo) + "</td><td>" + fmt(hi) + "</td><td>" + fmt(hi - lo) + "</td></tr>";
+      const lo = min(r.pts), hi = max(r.pts), fx = fxOf(r.k);
+      return "<tr><td>" + fmtDay.format(new Date(r.t * 1000)) + (r.k === todayKey ? " (heute)" : "") + "</td><td>" + fmt(avg(r.pts), fx) + "</td><td>" + fmt(peak(r.pts), fx) +
+        "</td><td>" + fmt(lo, fx) + "</td><td>" + fmt(hi, fx) + "</td><td>" + fmt(hi - lo, fx) + "</td><td>" + fx.toFixed(4) + "</td></tr>";
     }).join("");
   }
 
