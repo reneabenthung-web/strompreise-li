@@ -301,7 +301,7 @@ footer a { color: inherit; }
         big(cur ? cur.p : null) + (cur ? '<span class="pill ' + cls + '">' + txt + '</span>' : '') + '</div>' +
       '<div class="kpi"><div class="label">Heute · Base</div>' + big(tAvg) + dayStats(today) + '</div>' +
       '<div class="kpi"><div class="label">Morgen · Base</div>' +
-        (tom.length ? big(avg(tom)) + dayStats(tom) : '<div class="big">–</div><div class="muted">Die Auktion für morgen wird gegen Mittag veröffentlicht. Die Seite holt die Preise um ca. 13:45 Uhr.</div>') + '</div>';
+        (tom.length ? big(avg(tom)) + dayStats(tom) : '<div class="big">–</div><div class="muted">Die Auktion für morgen wird gegen Mittag veröffentlicht. Die Seite holt die Preise stündlich, sie erscheinen meist ab ca. 13 Uhr.</div>') + '</div>';
   }
 
   const NS = "http://www.w3.org/2000/svg";
@@ -326,7 +326,7 @@ footer a { color: inherit; }
     host.innerHTML = "";
     const keys = [todayKey];
     if (byDay(tomorrowKey).length) keys.push(tomorrowKey);
-    document.getElementById("day-title").textContent = keys.length > 1 ? "Heute und morgen" : "Heute (Preise für morgen ab ca. 13:45 Uhr)";
+    document.getElementById("day-title").textContent = keys.length > 1 ? "Heute und morgen" : "Heute (Preise für morgen ab ca. 13 Uhr)";
     const data = series.filter(x => keys.includes(dayKey(x.t)));
     if (!data.length) { host.textContent = "Keine Daten für heute vorhanden."; return; }
     const t0 = data[0].t, t1 = data[data.length - 1].end;
@@ -381,7 +381,7 @@ footer a { color: inherit; }
     const hrs = hourly().filter(h => h.end > now);
     const el = document.getElementById("plan");
     el.innerHTML = "";
-    if (hrs.length < len) { el.innerHTML = '<p class="muted">Zu wenige zukünftige Stunden vorhanden. Die Preise für morgen erscheinen um ca. 13:45 Uhr.</p>'; return; }
+    if (hrs.length < len) { el.innerHTML = '<p class="muted">Zu wenige zukünftige Stunden vorhanden. Die Preise für morgen erscheinen meist ab ca. 13 Uhr.</p>'; return; }
     const wins = [];
     for (let i = 0; i + len <= hrs.length; i++) {
       const s = hrs.slice(i, i + len);

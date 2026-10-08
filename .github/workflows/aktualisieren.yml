@@ -1,11 +1,10 @@
-# Holt die Strompreise zweimal täglich und veröffentlicht die Seite auf GitHub Pages.
-# Zeiten in UTC: 05:30 und 11:45 (= 07:30 / 13:45 Sommerzeit, 06:30 / 12:45 Winterzeit).
+# Holt die Strompreise jede Stunde und veröffentlicht die Seite auf GitHub Pages.
+# Minute 7 statt 0, weil GitHub zur vollen Stunde oft stark ausgelastet ist.
 name: Strompreise aktualisieren
 
 on:
   schedule:
-    - cron: "30 5 * * *"
-    - cron: "45 11 * * *"
+    - cron: "7 * * * *"
   workflow_dispatch:
     inputs:
       verlauf_neu:
