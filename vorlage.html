@@ -53,13 +53,7 @@ h2 { font-size: 1.2rem; font-weight: 600; }
 header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 12px 24px; }
 header p { margin: 4px 0 0; color: var(--muted); }
 .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); }
-.seg button {
-  font: 600 .85rem var(--font-body); color: var(--muted); background: transparent;
-  border: 0; padding: 7px 12px; cursor: pointer;
-}
-.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
-.seg button:focus-visible, select:focus-visible { outline: 2px solid var(--price); outline-offset: 2px; }
+select:focus-visible { outline: 2px solid var(--price); outline-offset: 2px; }
 
 .stale { border: 1px solid var(--warn); color: var(--warn); border-radius: 8px; padding: 8px 12px; font-weight: 500; }
 
@@ -103,7 +97,6 @@ tbody tr.klick:hover td { background: var(--bg); }
 
 footer { font-size: .8rem; color: var(--muted); display: grid; gap: 4px; }
 footer a { color: inherit; }
-@media (prefers-reduced-motion: no-preference) { .seg button { transition: background .15s, color .15s; } }
 </style>
 </head>
 <body>
@@ -112,12 +105,6 @@ footer a { color: inherit; }
     <div>
       <h1>Strombörse Liechtenstein</h1>
       <p>EPEX Spot Schweiz, Day-Ahead · <span id="stand"></span></p>
-    </div>
-    <div class="controls">
-      <div class="seg" role="group" aria-label="Einheit">
-        <button id="unit-rp" data-unit="rp" aria-pressed="true">Rp./kWh</button>
-        <button id="unit-eur" data-unit="eur" aria-pressed="false">EUR/MWh</button>
-      </div>
     </div>
   </header>
 
@@ -186,9 +173,6 @@ footer a { color: inherit; }
   </section>
 
   <footer>
-    <div>Base = Durchschnitt aller Stunden des Tages. Peak = Durchschnitt Montag–Freitag, 08–20 Uhr (am Wochenende leer). Spanne = Max − Min.</div>
-    <div>Im Rückblick ist Base/Peak eines Monats oder Jahres der Schnitt der Tageswerte. Rp./kWh werden mit dem EZB-Kurs des jeweiligen Tages umgerechnet.</div>
-    <div>Grosshandelspreise ohne Netzentgelte, Abgaben und MWST. Endkundenpreise der LKW liegen deutlich höher.</div>
     <div>Daten: <a href="https://www.energy-charts.info" target="_blank" rel="noopener">Energy-Charts (Fraunhofer ISE)</a>, Lizenz CC BY 4.0 · Wechselkurs: EZB über frankfurter.dev, <span id="fx"></span></div>
   </footer>
 </div>
@@ -198,8 +182,7 @@ footer a { color: inherit; }
 (function () {
   const D = JSON.parse(document.getElementById("daten").textContent);
   const TZ = "Europe/Zurich";
-  let unit = "rp";
-  try { unit = localStorage.getItem("unit") || "rp"; } catch (e) {}
+  const unit = "rp"; // Anzeige immer in Rp./kWh
 
   const fmtDay = new Intl.DateTimeFormat("de-CH", { timeZone: TZ, weekday: "short", day: "2-digit", month: "2-digit" });
   const fmtTime = new Intl.DateTimeFormat("de-CH", { timeZone: TZ, hour: "2-digit", minute: "2-digit" });
@@ -258,7 +241,6 @@ footer a { color: inherit; }
       st.hidden = false;
       st.textContent = "Diese Daten sind " + Math.round(ageH) + " Stunden alt. Die automatische Aktualisierung ist offenbar ausgefallen.";
     }
-    for (const b of document.querySelectorAll(".seg button")) b.setAttribute("aria-pressed", String(b.dataset.unit === unit));
   }
 
   function dayStats(arr) {
@@ -534,11 +516,6 @@ footer a { color: inherit; }
 
   function render() { header(); kpis(); dayChart(); plan(); month(); history(); }
 
-  for (const b of document.querySelectorAll(".seg button")) b.addEventListener("click", () => {
-    unit = b.dataset.unit;
-    try { localStorage.setItem("unit", unit); } catch (e) {}
-    render();
-  });
   document.getElementById("win-len").addEventListener("change", plan);
   render();
   let resizeTimer;
