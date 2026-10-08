@@ -101,6 +101,9 @@ td { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
 
 .btn { font: 600 .85rem var(--font-body); padding: 7px 12px; border-radius: 8px; border: 1px solid var(--ink); background: var(--ink); color: var(--panel); cursor: pointer; }
 .btn:focus-visible { outline: 2px solid var(--price); outline-offset: 2px; }
+a.btn { text-decoration: none; display: inline-block; }
+.btn-ghost { background: var(--panel); color: var(--ink); border-color: var(--line); }
+.refresh-hint { flex-basis: 100%; margin: 0; font-size: .85rem; color: var(--muted); border-left: 3px solid var(--price); padding-left: 10px; }
 .hist-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 8px 16px; }
 .hist-stats div { display: grid; gap: 2px; }
 .hist-stats strong { font-family: var(--font-data); font-size: 1.25rem; font-weight: 600; }
@@ -125,7 +128,9 @@ footer a { color: inherit; }
         <button id="unit-rp" data-unit="rp" aria-pressed="true">Rp./kWh</button>
         <button id="unit-eur" data-unit="eur" aria-pressed="false">EUR/MWh</button>
       </div>
+      <a class="btn btn-ghost" id="refresh" href="https://github.com/reneabenthung-web/strompreise-li/actions/workflows/aktualisieren.yml" target="_blank" rel="noopener">Daten aktualisieren</a>
     </div>
+    <p class="refresh-hint" id="refresh-hint" hidden>Auf GitHub «Run workflow» antippen und bestätigen. Diese Seite lädt sich von selbst neu, sobald die neuen Daten online sind (ca. 1–2 Minuten).</p>
   </header>
 
   <div id="stale" class="stale" hidden></div>
@@ -561,6 +566,21 @@ footer a { color: inherit; }
   render();
   let resizeTimer;
   addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { dayChart(); month(); history(); }, 200); });
+  // Nach «Daten aktualisieren»: bis zu 10 Minuten lang jede halbe Minute prüfen, ob eine neuere Seite online ist
+  document.getElementById("refresh").addEventListener("click", () => {
+    document.getElementById("refresh-hint").hidden = false;
+    const bis = Date.now() + 10 * 60 * 1000;
+    const pruefen = async () => {
+      if (Date.now() > bis) return;
+      try {
+        const text = await (await fetch(location.pathname + "?t=" + Date.now(), { cache: "no-store" })).text();
+        const m = text.match(/"generated":"([^"]+)"/);
+        if (m && m[1] !== D.generated) { location.reload(); return; }
+      } catch (e) {}
+      setTimeout(pruefen, 30000);
+    };
+    setTimeout(pruefen, 30000);
+  });
   // Offene Seite alle 15 Minuten neu laden, damit "jetzt" und neue Daten stimmen
   setInterval(() => location.reload(), 15 * 60 * 1000);
 })();

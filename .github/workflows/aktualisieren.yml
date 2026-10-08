@@ -7,6 +7,11 @@ on:
     - cron: "30 5 * * *"
     - cron: "45 11 * * *"
   workflow_dispatch:
+    inputs:
+      verlauf_neu:
+        description: "Ganzen Verlauf seit 2015 neu laden (dauert ca. 3 Minuten)"
+        type: boolean
+        default: false
   push:
     branches: [main]
 
@@ -27,6 +32,10 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
+
+      - name: Verlauf zurücksetzen (nur auf Wunsch)
+        if: github.event_name == 'workflow_dispatch' && inputs.verlauf_neu
+        run: rm -f verlauf.json
 
       - name: Preise holen und Seite bauen
         shell: pwsh
