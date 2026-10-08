@@ -7,6 +7,7 @@ $ordner  = $PSScriptRoot
 $vorlage = Join-Path $ordner 'vorlage.html'
 $ziel    = Join-Path $ordner 'strompreise.html'
 $verlauf = Join-Path $ordner 'verlauf.json'
+$stundenOrdner = Join-Path $ordner 'stunden'   # Stundenpreise je Jahr: stunden/2015.json ...
 $log     = Join-Path $ordner 'aktualisieren.log'
 $inv     = [Globalization.CultureInfo]::InvariantCulture
 $ersterTag = [datetime]'2015-01-01'
@@ -36,8 +37,8 @@ try { $tz = [TimeZoneInfo]::FindSystemTimeZoneById('Europe/Zurich') }
 catch { $tz = [TimeZoneInfo]::FindSystemTimeZoneById('W. Europe Standard Time') }
 
 # Summiert Preise je Kalendertag (Zürcher Zeit): Base = zeitgewichteter Schnitt,
-# Peak = Montag–Freitag 08–20 Uhr, dazu Min und Max
-function Sammle-Tage($preise, $tage) {
+# Peak = Montag–Freitag 08–20 Uhr, dazu Min und Max. Zusätzlich Stundenwerte je Tag in $stunden.
+function Sammle-Tage($preise, $tage, $stunden) {
     $ts = $preise.unix_seconds; $ps = $preise.price
     for ($i = 0; $i -lt $ts.Count; $i++) {
         if ($null -eq $ps[$i]) { continue }
@@ -52,6 +53,10 @@ function Sammle-Tage($preise, $tage) {
         if ($p -gt $e.max) { $e.max = $p }
         $wt = [int]$lokal.DayOfWeek
         if ($wt -ge 1 -and $wt -le 5 -and $lokal.Hour -ge 8 -and $lokal.Hour -lt 20) { $e.ps += $p * $dauer; $e.pd += $dauer }
+        $h = $stunden[$tag]
+        if ($null -eq $h) { $h = @{}; $stunden[$tag] = $h }
+        $hs = [long]$ts[$i] - ([long]$ts[$i] % 3600)   # Viertelstunden zur Stunde zusammenfassen
+        if ($h.ContainsKey($hs)) { $h[$hs][0] += $p; $h[$hs][1]++ } else { $h[$hs] = @($p, 1) }
     }
 }
 
@@ -73,21 +78,24 @@ try {
     $aktuell = $aktuellJson | ConvertFrom-Json
 
     $tage = @{}
-    Sammle-Tage $aktuell $tage
+    $stunden = @{}
+    Sammle-Tage $aktuell $tage $stunden
 
-    # Beim ersten Lauf: alle Jahre seit 2015 nachladen
-    if ($neu) {
-        for ($jahr = $ersterTag.Year; $jahr -le $heute.Year; $jahr++) {
-            $von = "$jahr-01-01"; $bis = "$jahr-12-31"
-            if ($jahr -eq $heute.Year) { $bis = $start }
-            Write-Output "Lade Verlauf $jahr ..."
-            Sammle-Tage ((Hole "https://api.energy-charts.info/price?bzn=CH&start=$von&end=$bis") | ConvertFrom-Json) $tage
-            Start-Sleep -Seconds 3
-        }
+    # Jahre nachladen: beim ersten Lauf alle seit 2015, sonst nur Jahre ohne Stundendatei
+    if (-not (Test-Path $stundenOrdner)) { New-Item -ItemType Directory -Path $stundenOrdner | Out-Null }
+    $fruehestesJahr = $null
+    for ($jahr = $ersterTag.Year; $jahr -le $heute.Year; $jahr++) {
+        if (-not $neu -and (Test-Path (Join-Path $stundenOrdner "$jahr.json"))) { continue }
+        $von = "$jahr-01-01"; $bis = "$jahr-12-31"
+        if ($jahr -eq $heute.Year) { $bis = $start }
+        Write-Output "Lade Verlauf $jahr ..."
+        Sammle-Tage ((Hole "https://api.energy-charts.info/price?bzn=CH&start=$von&end=$bis") | ConvertFrom-Json) $tage $stunden
+        if ($null -eq $fruehestesJahr) { $fruehestesJahr = $jahr }
+        Start-Sleep -Seconds 3
     }
 
     # Wechselkurse je Tag (EZB, nur Werktage; sonst gilt der letzte bekannte Kurs)
-    $fxVon = if ($neu) { $ersterTag.AddDays(-7) } else { $heute.AddDays(-40) }
+    $fxVon = if ($null -ne $fruehestesJahr) { ([datetime]"$fruehestesJahr-01-01").AddDays(-7) } else { $heute.AddDays(-40) }
     $fx = Hole ("https://api.frankfurter.dev/v1/" + $fxVon.ToString('yyyy-MM-dd') + ".." + $heute.ToString('yyyy-MM-dd') + "?base=EUR&symbols=CHF") | ConvertFrom-Json
     $kurse = @{}
     foreach ($eigenschaft in $fx.rates.PSObject.Properties) { $kurse[$eigenschaft.Name] = [double]$eigenschaft.Value.CHF }
@@ -111,6 +119,30 @@ try {
         '["' + $z[0] + '",' + (Zahl $z[1]) + ',' + (Zahl $z[2]) + ',' + (Zahl $z[3]) + ',' + (Zahl $z[4]) + ',' + (Zahl $z[5]) + ']'
     }) -join ",`n") + ']'
 
+    # Stundenwerte je Jahr: eine Zeile pro Tag, "Tag":[Start als Unixzeit, Preis je Stunde ...] in EUR/MWh
+    $jahre = @{}
+    foreach ($tag in $stunden.Keys) { if ($tag -lt $heuteText -and $tag -ge '2015-01-01') { $jahre[$tag.Substring(0, 4)] = $true } }
+    $stundenDateien = @{}
+    foreach ($jahr in $jahre.Keys) {
+        $datei = Join-Path $stundenOrdner "$jahr.json"
+        $tageText = @{}
+        if (Test-Path $datei) {
+            foreach ($zeile in [IO.File]::ReadAllLines($datei)) { if ($zeile -match '^"(\d{4}-\d\d-\d\d)":(\[[^\]]*\])') { $tageText[$Matches[1]] = $Matches[2] } }
+        }
+        foreach ($tag in $stunden.Keys) {
+            if (-not $tag.StartsWith($jahr) -or $tag -ge $heuteText) { continue }
+            $h = $stunden[$tag]
+            $keys = @($h.Keys | Sort-Object)
+            $werte = New-Object System.Collections.Generic.List[string]
+            $werte.Add([string]$keys[0])
+            for ($s = [long]$keys[0]; $s -le [long]$keys[-1]; $s += 3600) {
+                if ($h.ContainsKey($s)) { $werte.Add((Zahl ([Math]::Round($h[$s][0] / $h[$s][1], 2)))) } else { $werte.Add('null') }
+            }
+            $tageText[$tag] = '[' + ($werte -join ',') + ']'
+        }
+        $stundenDateien[$datei] = "{`n" + ((@($tageText.Keys | Sort-Object) | ForEach-Object { '"' + $_ + '":' + $tageText[$_] }) -join ",`n") + "`n}"
+    }
+
     $kursText = $kurs.ToString($inv)
     $jetzt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
     $daten = '{"generated":"' + $jetzt + '","eurchf":' + $kursText + ',"eurchfDate":"' + $letzterKursTag +
@@ -123,6 +155,10 @@ try {
     [IO.File]::WriteAllText($verlauf + '.tmp', '{"tage":' + $verlaufJson + '}', $utf8)
     Move-Item -Path ($ziel + '.tmp') -Destination $ziel -Force
     Move-Item -Path ($verlauf + '.tmp') -Destination $verlauf -Force
+    foreach ($datei in $stundenDateien.Keys) {
+        [IO.File]::WriteAllText($datei + '.tmp', $stundenDateien[$datei], $utf8)
+        Move-Item -Path ($datei + '.tmp') -Destination $datei -Force
+    }
 
     Schreibe-Log ("OK: Preise bis $ende geholt, Verlauf " + $sortiert[0] + " bis " + $sortiert[-1] + ", 1 EUR = $kursText CHF")
 } catch {
