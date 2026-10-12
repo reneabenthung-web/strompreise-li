@@ -21,6 +21,7 @@
   --price-fill: rgba(200, 32, 47, .10);
   --good: #1e8a5a;
   --warn: #b7791f;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; /* Netznutzung: feste Reihenfolge der Bestandteile */
   --font-display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
   --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-data: "JetBrains Mono", ui-monospace, Consolas, monospace;
@@ -28,12 +29,12 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0e141b; --panel: #161e28; --ink: #e6ebf1; --muted: #93a1b2; --line: #263241;
-    --price: #ef5a66; --price-fill: rgba(239, 90, 102, .14); --good: #4cc38a; --warn: #e0a84a; color-scheme: dark;
+    --price: #ef5a66; --price-fill: rgba(239, 90, 102, .14); --good: #4cc38a; --warn: #e0a84a; --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0e141b; --panel: #161e28; --ink: #e6ebf1; --muted: #93a1b2; --line: #263241;
-  --price: #ef5a66; --price-fill: rgba(239, 90, 102, .14); --good: #4cc38a; --warn: #e0a84a; color-scheme: dark;
+  --price: #ef5a66; --price-fill: rgba(239, 90, 102, .14); --good: #4cc38a; --warn: #e0a84a; --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
@@ -105,6 +106,17 @@ td { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
 .btn:disabled { opacity: .4; cursor: default; }
 .hist-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 8px 16px; }
 .hist-stats div { display: grid; gap: 2px; }
+.netz-kacheln { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.netz-kachel { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; display: grid; gap: 2px; }
+.netz-kachel.jetzt { border-color: var(--ink); }
+.netz-kachel strong { font-family: var(--font-data); font-size: 1.5rem; font-weight: 600; }
+.netz-kachel .muted { font-size: .82rem; }
+.netz-legende { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .85rem; color: var(--muted); }
+.netz-legende span { display: inline-flex; align-items: center; gap: 6px; }
+.netz-legende .q { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.netz-linie { width: 18px; height: 0; display: inline-block; }
+.netz-h3 { font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; margin: 6px 0 0; }
+.netz-eeg { display: inline-flex; align-items: center; gap: 6px; font-size: .9rem; color: var(--muted); cursor: pointer; }
 .hist-day { border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 12px; }
 .hist-day h3 { font-family: var(--font-display); font-size: 1.1rem; font-weight: 600; margin: 0; }
 .hist-stats strong { font-family: var(--font-data); font-size: 1.25rem; font-weight: 600; }
@@ -177,6 +189,24 @@ footer a { color: inherit; }
     </div>
     <p class="muted" style="margin:0">Zum Planen von E-Auto-Laden, Wärmepumpe oder Batteriespeicher. Berücksichtigt nur Stunden ab jetzt.</p>
     <div class="plan" id="plan"></div>
+  </section>
+
+  <section class="panel" id="netz">
+    <div class="panel-head">
+      <h2 id="netz-title">Netznutzung LKW</h2>
+      <label class="netz-eeg" for="netz-eeg"><input type="checkbox" id="netz-eeg"> Förderabgabe EEG einbeziehen</label>
+    </div>
+    <p class="muted" style="margin:0">Kundengruppe 2 (ab 10'000 kWh Jahresbezug oder mit Rücklieferung), nur die Preise pro kWh: ohne Messpreis und Leistungspreis, exkl. MWST.</p>
+    <div class="netz-kacheln" id="netz-kacheln"></div>
+    <div class="netz-legende" id="netz-legende"></div>
+    <div class="chart" id="netz-bar"></div>
+    <h3 class="netz-h3">Tagesverlauf der Netzkosten</h3>
+    <div class="netz-legende">
+      <span><i class="netz-linie" style="border-top:2px solid var(--s4)"></i>Sommer (1. April – 30. September)</span>
+      <span><i class="netz-linie" style="border-top:2px dashed var(--s1)"></i>Winter (1. Oktober – 31. März)</span>
+    </div>
+    <div class="chart" id="netz-tag"></div>
+    <div class="tip" id="netz-tip">Über die Balken oder die Kurve fahren oder tippen, um Werte zu sehen.</div>
   </section>
 
   <section class="panel">
@@ -671,7 +701,108 @@ footer a { color: inherit; }
     box.hidden = true; delete box.dataset.gezeigt;
   });
 
-  function render() { header(); kpis(); dayChart(); plan(); month(); history(); }
+  // ---- Netznutzung LKW (Tarifblatt «Netznutzungspreise 2026», Kundengruppe 2), Rp./kWh exkl. MWST ----
+  // Für ein neues Tarifjahr nur diese Werte anpassen.
+  const NETZ = {
+    jahr: 2026,
+    teile: [
+      { name: "Arbeitspreis", farbe: "var(--s1)", sommer: 7.10, winter: 9.20, hochlast: 9.20 },
+      { name: "Zuschlag Hochlastzeit", farbe: "var(--s2)", sommer: 0, winter: 0, hochlast: 2.10 },
+      { name: "Swissgrid Systemdienstleistungen", farbe: "var(--s3)", sommer: 0.27, winter: 0.27, hochlast: 0.27 },
+      { name: "Swissgrid Stromreserve", farbe: "var(--s4)", sommer: 0.41, winter: 0.41, hochlast: 0.41 },
+      { name: "Förderabgabe EEG", farbe: "var(--s5)", sommer: 1.50, winter: 1.50, hochlast: 1.50, eeg: true }
+    ],
+    hochlastVon: 17, hochlastBis: 22, // nur im Winterhalbjahr
+    winterMonate: [10, 11, 12, 1, 2, 3]
+  };
+  const FENSTER = [
+    { key: "sommer", name: "Sommer", info: "1. April – 30. September, ganzer Tag" },
+    { key: "winter", name: "Winter", info: "1. Oktober – 31. März, ausser 17–22 Uhr" },
+    { key: "hochlast", name: "Winter 17–22 Uhr", info: "Hochlastzeit im Winterhalbjahr" }
+  ];
+  const f2 = v => v.toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const netzTeile = () => NETZ.teile.filter(t => !t.eeg || document.getElementById("netz-eeg").checked);
+  const netzTotal = key => netzTeile().reduce((s, t) => s + t[key], 0);
+  function netzJetzt() {
+    const d = new Date();
+    const monat = +new Intl.DateTimeFormat("en-GB", { timeZone: TZ, month: "numeric" }).format(d);
+    const h = +hourFmt.format(d);
+    if (!NETZ.winterMonate.includes(monat)) return "sommer";
+    return h >= NETZ.hochlastVon && h < NETZ.hochlastBis ? "hochlast" : "winter";
+  }
+
+  function netz() {
+    document.getElementById("netz-title").textContent = "Netznutzung LKW " + NETZ.jahr;
+    const jetzt = netzJetzt();
+    const tip = document.getElementById("netz-tip");
+    document.getElementById("netz-kacheln").innerHTML = FENSTER.map(w =>
+      '<div class="netz-kachel' + (w.key === jetzt ? ' jetzt' : '') + '"><span class="label">' + w.name + '</span>' +
+      '<strong>' + f2(netzTotal(w.key)) + '</strong><span class="muted">Rp./kWh · ' + w.info + '</span>' +
+      (w.key === jetzt ? '<span class="pill mid">gilt jetzt</span>' : '') + '</div>').join("");
+    document.getElementById("netz-legende").innerHTML = netzTeile().map(t =>
+      '<span><i class="q" style="background:' + t.farbe + '"></i>' + t.name + '</span>').join("");
+
+    // Gestapelte Balken je Zeitfenster
+    const host = document.getElementById("netz-bar");
+    host.innerHTML = "";
+    const W = Math.max(300, host.clientWidth || 1000), L = W < 520 ? 96 : 130, R = 56, T = 6, rowH = 34, B = 24;
+    const H = T + FENSTER.length * rowH + B;
+    const maxV = Math.ceil(Math.max(...FENSTER.map(w => netzTotal(w.key))) / 2) * 2;
+    const x = v => L + v / maxV * (W - L - R);
+    const svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Netzkosten je Zeitfenster, gestapelt nach Bestandteilen" }, host);
+    for (let v = 0; v <= maxV; v += 2) {
+      svgEl("line", { x1: x(v), x2: x(v), y1: T, y2: H - B, stroke: "var(--line)" }, svg);
+      svgEl("text", { x: x(v), y: H - 6, "text-anchor": "middle" }, svg).textContent = v;
+    }
+    FENSTER.forEach((w, i) => {
+      const y0 = T + i * rowH + 6, bh = rowH - 12;
+      svgEl("text", { x: L - 8, y: y0 + bh / 2 + 4, "text-anchor": "end", style: "fill:var(--ink)" }, svg).textContent = w.name;
+      let acc = 0;
+      netzTeile().forEach(t => {
+        const v = t[w.key];
+        if (!v) return;
+        const rect = svgEl("rect", { x: x(acc), y: y0, width: Math.max(1, x(acc + v) - x(acc) - 2), height: bh, fill: t.farbe, rx: 2 }, svg);
+        rect.addEventListener("pointerenter", () => { tip.textContent = w.name + " · " + t.name + " " + f2(v) + " Rp./kWh · Total " + f2(netzTotal(w.key)) + " Rp./kWh"; });
+        acc += v;
+      });
+      svgEl("text", { x: x(acc) + 6, y: y0 + bh / 2 + 4, style: "fill:var(--ink)" }, svg).textContent = f2(acc);
+    });
+
+    // Tagesverlauf Sommer / Winter als Treppenkurve, mit Markierung der aktuellen Stunde
+    const host2 = document.getElementById("netz-tag");
+    host2.innerHTML = "";
+    const W2 = Math.max(300, host2.clientWidth || 1000), H2 = W2 < 600 ? 190 : 230, L2 = 44, R2 = 8, T2 = 12, B2 = 30;
+    const wert = (saison, h) => saison === "sommer" ? netzTotal("sommer") : netzTotal(h >= NETZ.hochlastVon && h < NETZ.hochlastBis ? "hochlast" : "winter");
+    const ticks = niceTicks(0, Math.max(...FENSTER.map(w => netzTotal(w.key))), 4);
+    const yMax = ticks[ticks.length - 1];
+    const x2 = h => L2 + h / 24 * (W2 - L2 - R2), y2 = v => T2 + (1 - v / yMax) * (H2 - T2 - B2);
+    const svg2 = svgEl("svg", { viewBox: "0 0 " + W2 + " " + H2, role: "img", "aria-label": "Netzkosten im Tagesverlauf, Sommer und Winter" }, host2);
+    for (const v of ticks) {
+      svgEl("line", { x1: L2, x2: W2 - R2, y1: y2(v), y2: y2(v), stroke: "var(--line)" }, svg2);
+      svgEl("text", { x: L2 - 8, y: y2(v) + 4, "text-anchor": "end" }, svg2).textContent = v.toLocaleString("de-CH");
+    }
+    const hStep = W2 < 520 ? 6 : 3;
+    for (let h = 0; h <= 24; h += hStep) svgEl("text", { x: x2(h), y: H2 - 10, "text-anchor": h === 0 ? "start" : h === 24 ? "end" : "middle" }, svg2).textContent = String(h).padStart(2, "0") + ":00";
+    [["sommer", "var(--s4)", null], ["winter", "var(--s1)", "6 4"]].forEach(([s, farbe, dash]) => {
+      let d = "";
+      for (let h = 0; h < 24; h++) d += (d ? "L" : "M") + x2(h).toFixed(1) + "," + y2(wert(s, h)).toFixed(1) + "L" + x2(h + 1).toFixed(1) + "," + y2(wert(s, h)).toFixed(1);
+      const attrs = { d, fill: "none", stroke: farbe, "stroke-width": 2, "stroke-linejoin": "round" };
+      if (dash) attrs["stroke-dasharray"] = dash;
+      svgEl("path", attrs, svg2);
+    });
+    const hJetzt = +hourFmt.format(new Date()) + new Date().getMinutes() / 60;
+    svgEl("line", { x1: x2(hJetzt), x2: x2(hJetzt), y1: T2, y2: H2 - B2, stroke: "var(--ink)", "stroke-width": 1.5 }, svg2);
+    svgEl("text", { x: x2(hJetzt) + 4, y: T2 + 10, style: "fill:var(--ink)" }, svg2).textContent = "jetzt";
+    svg2.addEventListener("pointermove", ev => {
+      const r = svg2.getBoundingClientRect();
+      const h = Math.floor(((ev.clientX - r.left) / r.width * W2 - L2) / (W2 - L2 - R2) * 24);
+      if (h < 0 || h > 23) return;
+      tip.textContent = String(h).padStart(2, "0") + ":00–" + String(h + 1).padStart(2, "0") + ":00 · Sommer " + f2(wert("sommer", h)) + " · Winter " + f2(wert("winter", h)) + " Rp./kWh";
+    });
+  }
+  document.getElementById("netz-eeg").addEventListener("change", netz);
+
+  function render() { header(); kpis(); dayChart(); plan(); netz(); month(); history(); }
 
   for (const b of document.querySelectorAll(".seg button")) b.addEventListener("click", () => {
     unit = b.dataset.unit;
@@ -687,7 +818,7 @@ footer a { color: inherit; }
   document.getElementById("day-today").addEventListener("click", () => selectDay(null));
   render();
   let resizeTimer;
-  addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { dayChart(); month(); history(); if (histDay) showHistDay(histDay); }, 200); });
+  addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { dayChart(); netz(); month(); history(); if (histDay) showHistDay(histDay); }, 200); });
   // Offene Seite alle 15 Minuten neu laden, damit "jetzt" und neue Daten stimmen
   setInterval(() => location.reload(), 15 * 60 * 1000);
 })();
