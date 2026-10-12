@@ -45,6 +45,7 @@ jobs:
           mkdir -p _site
           cp strompreise.html _site/index.html
           cp -r stunden _site/stunden
+          cp loxone.txt loxone.json netztarif.json _site/
 
       - uses: actions/upload-pages-artifact@v5
         with:

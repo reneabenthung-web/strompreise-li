@@ -1,0 +1,15 @@
+{
+  "quelle": "LKW Netznutzungspreise 2026, Kundengruppe 2 (ohne Messpreis und Leistungspreis)",
+  "einheit": "Rp./kWh exkl. MWST",
+  "jahr": 2026,
+  "winterMonate": [10, 11, 12, 1, 2, 3],
+  "hochlastVon": 17,
+  "hochlastBis": 22,
+  "teile": [
+    { "name": "Arbeitspreis", "farbe": "var(--s1)", "sommer": 7.10, "winter": 9.20, "hochlast": 9.20 },
+    { "name": "Zuschlag Hochlastzeit", "farbe": "var(--s2)", "sommer": 0, "winter": 0, "hochlast": 2.10 },
+    { "name": "Swissgrid Systemdienstleistungen", "farbe": "var(--s3)", "sommer": 0.27, "winter": 0.27, "hochlast": 0.27 },
+    { "name": "Swissgrid Stromreserve", "farbe": "var(--s4)", "sommer": 0.41, "winter": 0.41, "hochlast": 0.41 },
+    { "name": "Förderabgabe EEG", "farbe": "var(--s5)", "sommer": 1.50, "winter": 1.50, "hochlast": 1.50, "eeg": true }
+  ]
+}

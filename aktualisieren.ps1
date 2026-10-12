@@ -145,8 +145,77 @@ try {
 
     $kursText = $kurs.ToString($inv)
     $jetzt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+
+    # Netztarif (gemeinsam für Seite und Loxone-Schnittstelle)
+    $netzJson = [IO.File]::ReadAllText((Join-Path $ordner 'netztarif.json'), [Text.Encoding]::UTF8)
+    $netz = $netzJson | ConvertFrom-Json
+    function Netz-Teil($name, $fenster) { [double](@($netz.teile | Where-Object { $_.name -eq $name })[0].$fenster) }
+    function Netz-Fenster([datetime]$lokal) {
+        if ($netz.winterMonate -notcontains $lokal.Month) { return 'sommer' }
+        if ($lokal.Hour -ge $netz.hochlastVon -and $lokal.Hour -lt $netz.hochlastBis) { return 'hochlast' }
+        return 'winter'
+    }
+
+    # Loxone-Schnittstelle: Stundenpreise von heute und morgen in Rp./kWh (Energie zum EZB-Kurs + Netz + EEG)
+    $stundenE = @{}
+    for ($i = 0; $i -lt $aktuell.unix_seconds.Count; $i++) {
+        if ($null -eq $aktuell.price[$i]) { continue }
+        $lokal = [TimeZoneInfo]::ConvertTimeFromUtc([DateTimeOffset]::FromUnixTimeSeconds($aktuell.unix_seconds[$i]).UtcDateTime, $tz)
+        $k = $lokal.ToString('yyyy-MM-dd HH')
+        if (-not $stundenE.ContainsKey($k)) { $stundenE[$k] = @(0.0, 0) }
+        $stundenE[$k][0] += [double]$aktuell.price[$i]; $stundenE[$k][1]++
+    }
+    $jetztLokal = [TimeZoneInfo]::ConvertTimeFromUtc((Get-Date).ToUniversalTime(), $tz)
+    $f2 = { param($v) if ($null -eq $v) { 'nan' } else { ([double]$v).ToString('0.00', $inv) } }
+    $lx = New-Object System.Collections.Generic.List[string]
+    $lxJson = New-Object System.Collections.Generic.List[string]
+    function Stunde-Werte([datetime]$tag, [int]$h) {
+        $k = $tag.ToString('yyyy-MM-dd') + ' ' + $h.ToString('00')
+        if (-not $stundenE.ContainsKey($k)) { return $null }
+        $e = $stundenE[$k][0] / $stundenE[$k][1] * $kurs / 10
+        if ($tag.Year -ne [int]$netz.jahr) { return @{ e = $e; netz = $null; eeg = $null; total = $null; fenster = '' } }
+        $fe = Netz-Fenster ($tag.AddHours($h))
+        $n = (Netz-Teil 'Arbeitspreis' $fe) + (Netz-Teil 'Zuschlag Hochlastzeit' $fe) + (Netz-Teil 'Swissgrid Systemdienstleistungen' $fe) + (Netz-Teil 'Swissgrid Stromreserve' $fe)
+        $g = Netz-Teil 'Förderabgabe EEG' $fe
+        return @{ e = $e; netz = $n; eeg = $g; total = $e + $n + $g; fenster = $fe }
+    }
+    $jw = Stunde-Werte $heute $jetztLokal.Hour
+    $lx.Add('stand=' + $jetztLokal.ToString('yyyy-MM-dd HH:mm'))
+    $lx.Add('stunde=' + $jetztLokal.Hour)
+    $lx.Add('netztarif_jahr=' + $netz.jahr)
+    $lx.Add('eurchf=' + $kurs.ToString('0.0000', $inv))
+    foreach ($n in 'e', 'netz', 'eeg', 'total') {
+        $name = @{ e = 'jetzt_energie'; netz = 'jetzt_netz'; eeg = 'jetzt_eeg'; total = 'jetzt_total' }[$n]
+        $lx.Add($name + '=' + (& $f2 ($(if ($jw) { $jw[$n] } else { $null }))))
+    }
+    $lx.Add('jetzt_winter=' + $(if ($jw -and $jw.fenster -ne 'sommer') { 1 } else { 0 }))
+    $lx.Add('jetzt_hochlast=' + $(if ($jw -and $jw.fenster -eq 'hochlast') { 1 } else { 0 }))
+    foreach ($tagInfo in @(@('h', $heute, 'heute'), @('m', $heute.AddDays(1), 'morgen'))) {
+        $praefix = $tagInfo[0]; $tag = $tagInfo[1]
+        $totale = @(); $stundenMitWert = @(); $jsonStunden = @()
+        for ($h = 0; $h -lt 24; $h++) {
+            $w = Stunde-Werte $tag $h
+            $lx.Add('total_' + $praefix + $h.ToString('00') + '=' + (& $f2 ($(if ($w) { $w.total } else { $null }))))
+            $lx.Add('energie_' + $praefix + $h.ToString('00') + '=' + (& $f2 ($(if ($w) { $w.e } else { $null }))))
+            if ($w -and $null -ne $w.total) { $totale += $w.total; $stundenMitWert += $h }
+            if ($w) { $jsonStunden += '{"stunde":' + $h + ',"energie":' + (& $f2 $w.e) + ',"netz":' + (& $f2 $w.netz).Replace('nan', 'null') + ',"eeg":' + (& $f2 $w.eeg).Replace('nan', 'null') + ',"total":' + (& $f2 $w.total).Replace('nan', 'null') + ',"fenster":"' + $w.fenster + '"}' }
+        }
+        $lx.Add($tagInfo[2] + '_verfuegbar=' + $(if ($totale.Count) { 1 } else { 0 }))
+        if ($totale.Count) {
+            $min = ($totale | Measure-Object -Minimum).Minimum
+            $lx.Add($tagInfo[2] + '_min=' + (& $f2 $min))
+            $lx.Add($tagInfo[2] + '_max=' + (& $f2 ($totale | Measure-Object -Maximum).Maximum))
+            $lx.Add($tagInfo[2] + '_avg=' + (& $f2 ($totale | Measure-Object -Average).Average))
+            $lx.Add($tagInfo[2] + '_guenstigste_stunde=' + $stundenMitWert[[array]::IndexOf($totale, $min)])
+        }
+        $lxJson.Add('"' + $tagInfo[2] + '":[' + ($jsonStunden -join ',') + ']')
+    }
+    $loxoneTxt = ($lx -join "`r`n") + "`r`n"
+    $loxoneJson = '{"stand":"' + $jetztLokal.ToString('yyyy-MM-ddTHH:mm') + '","einheit":"Rp./kWh exkl. MWST","eurchf":' + $kurs.ToString('0.0000', $inv) +
+                  ',"netztarif_jahr":' + $netz.jahr + ',' + ($lxJson -join ',') + '}'
+
     $daten = '{"generated":"' + $jetzt + '","eurchf":' + $kursText + ',"eurchfDate":"' + $letzterKursTag +
-             '","zones":{"CH":' + $aktuellJson + '},"verlauf":' + $verlaufJson + '}'
+             '","zones":{"CH":' + $aktuellJson + '},"verlauf":' + $verlaufJson + ',"netz":' + $netzJson + '}'
 
     $html = [IO.File]::ReadAllText($vorlage, [Text.Encoding]::UTF8)
     $html = $html.Replace('/*DATEN*/', $daten.Replace('</', '<\/'))
@@ -155,6 +224,8 @@ try {
     [IO.File]::WriteAllText($verlauf + '.tmp', '{"tage":' + $verlaufJson + '}', $utf8)
     Move-Item -Path ($ziel + '.tmp') -Destination $ziel -Force
     Move-Item -Path ($verlauf + '.tmp') -Destination $verlauf -Force
+    [IO.File]::WriteAllText((Join-Path $ordner 'loxone.txt'), $loxoneTxt, $utf8)
+    [IO.File]::WriteAllText((Join-Path $ordner 'loxone.json'), $loxoneJson, $utf8)
     foreach ($datei in $stundenDateien.Keys) {
         [IO.File]::WriteAllText($datei + '.tmp', $stundenDateien[$datei], $utf8)
         Move-Item -Path ($datei + '.tmp') -Destination $datei -Force
