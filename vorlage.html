@@ -116,7 +116,13 @@ td { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
 .netz-legende .q { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
 .netz-linie { width: 18px; height: 0; display: inline-block; }
 .netz-h3 { font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; margin: 6px 0 0; }
-.netz-eeg { display: inline-flex; align-items: center; gap: 6px; font-size: .9rem; color: var(--muted); cursor: pointer; }
+.netz-auf { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: grid; gap: 10px; }
+.netz-auf .balken { display: flex; height: 14px; border-radius: 4px; overflow: hidden; gap: 2px; }
+.netz-auf table { font-size: .9rem; }
+.netz-auf td, .netz-auf th { padding: 4px 8px; }
+.netz-auf tr.gruppe td { color: var(--muted); font-family: var(--font-body); font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; border-bottom: 0; padding-top: 10px; }
+.netz-auf tr.total td { font-weight: 600; border-top: 2px solid var(--ink); border-bottom: 0; }
+.netz-auf td:first-child { font-family: var(--font-body); }
 .hist-day { border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 12px; }
 .hist-day h3 { font-family: var(--font-display); font-size: 1.1rem; font-weight: 600; margin: 0; }
 .hist-stats strong { font-family: var(--font-data); font-size: 1.25rem; font-weight: 600; }
@@ -194,14 +200,15 @@ footer a { color: inherit; }
   <section class="panel" id="netz">
     <div class="panel-head">
       <h2 id="netz-title">Energie + Netznutzung</h2>
-      <label class="netz-eeg" for="netz-eeg"><input type="checkbox" id="netz-eeg"> Förderabgabe EEG einbeziehen</label>
     </div>
     <p class="muted" style="margin:0" id="netz-info"></p>
     <div class="netz-kacheln" id="netz-kacheln"></div>
+    <div class="netz-auf" id="netz-auf"></div>
+    <h3 class="netz-h3">Heute und morgen je Stunde</h3>
     <div class="netz-legende" id="netz-legende-stunden"></div>
     <div class="chart" id="netz-stunden"></div>
     <div class="tip" id="netz-tip">Über die Balken fahren oder tippen, um die Zusammensetzung einer Stunde zu sehen.</div>
-    <h3 class="netz-h3">Zusammensetzung der Netznutzung</h3>
+    <h3 class="netz-h3">Netznutzung und Abgabe je Zeitfenster</h3>
     <div class="netz-legende" id="netz-legende"></div>
     <div class="chart" id="netz-bar"></div>
   </section>
@@ -718,7 +725,7 @@ footer a { color: inherit; }
     { key: "hochlast", name: "Winter 17–22 Uhr", info: "Hochlastzeit im Winterhalbjahr" }
   ];
   const f2 = v => v.toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const netzTeile = () => NETZ.teile.filter(t => !t.eeg || document.getElementById("netz-eeg").checked);
+  const netzTeile = () => NETZ.teile; // Förderabgabe EEG ist immer eingerechnet
   const netzTotal = key => netzTeile().reduce((s, t) => s + t[key], 0);
   // Zeitfenster der Netznutzung für einen Zeitpunkt (Zürcher Zeit): Sommer, Winter oder Winter-Hochlast
   const monatFmt = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, month: "numeric" });
@@ -728,16 +735,16 @@ footer a { color: inherit; }
     const h = +hourFmt.format(d);
     return h >= NETZ.hochlastVon && h < NETZ.hochlastBis ? "hochlast" : "winter";
   }
-  const eegAn = () => document.getElementById("netz-eeg").checked;
   const netzOhneEeg = key => NETZ.teile.filter(t => !t.eeg).reduce((s, t) => s + t[key], 0);
-  const eegWert = () => eegAn() ? NETZ.teile.find(t => t.eeg).sommer : 0;
+  const eegWert = () => NETZ.teile.find(t => t.eeg).sommer;
+  const teilWert = (name, key) => NETZ.teile.find(t => t.name === name)[key];
   const rp = eur => eur * D.eurchf / 10; // Börsenpreis EUR/MWh -> Rp./kWh
 
   function netz() {
     const tip = document.getElementById("netz-tip");
     document.getElementById("netz-info").textContent =
       "Pro Stunde: Börsenpreis EPEX Spot Schweiz plus Netznutzung LKW " + NETZ.jahr +
-      " (Kundengruppe 2, ohne Messpreis und Leistungspreis). Sommer, Winter und Hochlastzeit 17–22 Uhr werden automatisch nach Datum und Uhrzeit angewendet. Alle Werte in Rp./kWh exkl. MWST.";
+      " (Kundengruppe 2, ohne Messpreis und Leistungspreis) plus Förderabgabe EEG. Sommer, Winter und Hochlastzeit 17–22 Uhr werden automatisch nach Datum und Uhrzeit angewendet. Alle Werte in Rp./kWh exkl. MWST.";
 
     // Stunden von heute und morgen mit Energie, Netz und Total – nur im Tarifjahr, für andere Jahre fehlen die Netztarife
     const imTarifjahr = h => dayKey(h.t).startsWith(String(NETZ.jahr));
@@ -748,13 +755,15 @@ footer a { color: inherit; }
       : "";
     const stunden = alleStunden.filter(imTarifjahr).map(h => {
       const key = netzKey(h.t), e = rp(h.p), n = netzOhneEeg(key), g = eegWert();
-      return { t: h.t, end: h.end, key, e, n, g, total: e + n + g };
+      const ap = teilWert("Arbeitspreis", key), zu = teilWert("Zuschlag Hochlastzeit", key);
+      const sg = teilWert("Swissgrid Systemdienstleistungen", key) + teilWert("Swissgrid Stromreserve", key);
+      return { t: h.t, end: h.end, key, e, n, g, ap, zu, sg, total: e + n + g };
     });
     const schnitt = arr => arr.length ? arr.reduce((s, x) => s + x.total, 0) / arr.length : null;
     const jetzt = stunden.find(s => s.t <= now && now < s.end);
     const heute = stunden.filter(s => dayKey(s.t) === todayKey), morgen = stunden.filter(s => dayKey(s.t) === tomorrowKey);
     const fensterName = { sommer: "Sommer", winter: "Winter", hochlast: "Winter, Hochlast 17–22 Uhr" };
-    const teilText = s => "Energie " + f2(s.e) + " + Netz " + f2(s.n) + (s.g ? " + EEG " + f2(s.g) : "");
+    const teilText = s => "Energie " + f2(s.e) + " + Netz " + f2(s.n) + " + EEG " + f2(s.g);
     const avgTeil = (arr, k) => arr.reduce((a, x) => a + x[k], 0) / arr.length;
     const kachel = (titel, wert, zeile, extra) =>
       '<div class="netz-kachel' + (extra ? ' jetzt' : '') + '"><span class="label">' + titel + '</span><strong>' + (wert == null ? "–" : f2(wert)) +
@@ -765,9 +774,39 @@ footer a { color: inherit; }
       kachel("Heute Ø", schnitt(heute), heute.length ? teilText({ e: avgTeil(heute, "e"), n: avgTeil(heute, "n"), g: eegWert() }) : (ausserhalb ? "kein Netztarif hinterlegt" : "keine Daten")) +
       kachel("Morgen Ø", schnitt(morgen), morgen.length ? teilText({ e: avgTeil(morgen, "e"), n: avgTeil(morgen, "n"), g: eegWert() }) : (ausserhalb ? "kein Netztarif hinterlegt" : "Preise für morgen ab ca. 13 Uhr"));
 
-    const teile = [{ k: "n", name: "Netznutzung", farbe: "var(--s1)" }, { k: "e", name: "Energie (Börse)", farbe: "var(--price)" }];
-    if (eegAn()) teile.push({ k: "g", name: "Förderabgabe EEG", farbe: "var(--s5)" });
-    document.getElementById("netz-legende-stunden").innerHTML = teile.map(t => '<span><i class="q" style="background:' + t.farbe + '"></i>' + t.name + '</span>').join("") +
+    // Aufschlüsselung der aktuellen Stunde: Energie, Netznutzung (Arbeitspreis, Zuschlag, Swissgrid), Abgabe
+    const TEILE = [
+      { k: "e", name: "Energie (Börse EPEX Spot Schweiz)", kurz: "Energie", farbe: "var(--price)", gruppe: "Energie" },
+      { k: "ap", name: "Arbeitspreis Netz", kurz: "Arbeitspreis", farbe: "var(--s1)", gruppe: "Netznutzung" },
+      { k: "zu", name: "Zuschlag Hochlastzeit", kurz: "Zuschlag", farbe: "var(--s2)", gruppe: "Netznutzung" },
+      { k: "sg", name: "Swissgrid (Systemdienstleistungen + Stromreserve)", kurz: "Swissgrid", farbe: "var(--s3)", gruppe: "Netznutzung" },
+      { k: "g", name: "Förderabgabe EEG", kurz: "Förderabgabe EEG", farbe: "var(--s5)", gruppe: "Abgaben" }
+    ];
+    const auf = document.getElementById("netz-auf");
+    if (!jetzt) { auf.hidden = true; } else {
+      auf.hidden = false;
+      const anteil = v => Math.round(v / jetzt.total * 100) + " %";
+      const zeilen = TEILE.filter(t => t.k !== "zu" || jetzt.zu);
+      let gruppe = "", html = "";
+      for (const t of zeilen) {
+        if (t.gruppe !== gruppe) {
+          gruppe = t.gruppe;
+          const inGruppe = zeilen.filter(z => z.gruppe === gruppe);
+          const summe = inGruppe.reduce((a, z) => a + jetzt[z.k], 0);
+          if (inGruppe.length > 1) html += '<tr class="gruppe"><td>' + gruppe + '</td><td>' + f2(summe) + '</td><td>' + (jetzt.total > 0 ? anteil(summe) : "") + '</td></tr>';
+        }
+        html += '<tr><td><i class="q" style="background:' + t.farbe + ';display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px"></i>' + t.name +
+          '</td><td>' + f2(jetzt[t.k]) + '</td><td>' + (jetzt.total > 0 && jetzt[t.k] >= 0 ? anteil(jetzt[t.k]) : "") + '</td></tr>';
+      }
+      html += '<tr class="total"><td>Total</td><td>' + f2(jetzt.total) + '</td><td>Rp./kWh</td></tr>';
+      const balken = jetzt.total > 0 ? zeilen.filter(t => jetzt[t.k] > 0).map(t => '<span style="background:' + t.farbe + ';flex:' + jetzt[t.k].toFixed(3) + '" title="' + t.kurz + '"></span>').join("") : "";
+      auf.innerHTML = '<span class="label">Zusammensetzung jetzt · ' + span(jetzt) + ' · ' + fensterName[jetzt.key] + '</span>' +
+        (balken ? '<div class="balken">' + balken + '</div>' : '') +
+        '<div class="table-wrap"><table><thead><tr><th>Bestandteil</th><th>Rp./kWh</th><th>Anteil</th></tr></thead><tbody>' + html + '</tbody></table></div>';
+    }
+
+    const teile = TEILE.slice(1).concat(TEILE[0]); // Stapelreihenfolge von unten: Netz, Abgabe, Energie
+    document.getElementById("netz-legende-stunden").innerHTML = teile.map(t => '<span><i class="q" style="background:' + t.farbe + '"></i>' + t.kurz + '</span>').join("") +
       '<span><i class="netz-linie" style="border-top:2px solid var(--ink)"></i>Total</span>';
 
     // Gestapelte Stundenbalken; ein negativer Börsenpreis zieht nach unten
@@ -793,7 +832,9 @@ footer a { color: inherit; }
         const w = Math.max(1, bw - 2);
         let unten = 0; // Stapel ab 0: Netz, EEG, dann positive Energie
         const seg = (v, farbe) => { if (v <= 0) return; svgEl("rect", { x: x0 + 1, y: y(unten + v), width: w, height: Math.max(0.5, y(unten) - y(unten + v) - 1), fill: farbe }, svg); unten += v; };
-        seg(s.n, "var(--s1)");
+        seg(s.ap, "var(--s1)");
+        seg(s.zu, "var(--s2)");
+        seg(s.sg, "var(--s3)");
         seg(s.g, "var(--s5)");
         if (s.e >= 0) seg(s.e, "var(--price)");
         else svgEl("rect", { x: x0 + 1, y: y(0) + 1, width: w, height: Math.max(0.5, y(s.e) - y(0) - 1), fill: "var(--price)" }, svg);
@@ -838,7 +879,6 @@ footer a { color: inherit; }
       svgEl("text", { x: xb(acc) + 6, y: y0 + bh / 2 + 4, style: "fill:var(--ink)" }, svgB).textContent = f2(acc);
     });
   }
-  document.getElementById("netz-eeg").addEventListener("change", netz);
 
   function render() { header(); kpis(); dayChart(); plan(); netz(); month(); history(); }
 
