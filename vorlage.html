@@ -739,8 +739,14 @@ footer a { color: inherit; }
       "Pro Stunde: Börsenpreis EPEX Spot Schweiz plus Netznutzung LKW " + NETZ.jahr +
       " (Kundengruppe 2, ohne Messpreis und Leistungspreis). Sommer, Winter und Hochlastzeit 17–22 Uhr werden automatisch nach Datum und Uhrzeit angewendet. Alle Werte in Rp./kWh exkl. MWST.";
 
-    // Stunden von heute und morgen mit Energie, Netz und Total
-    const stunden = hourly().filter(h => dayKey(h.t) === todayKey || dayKey(h.t) === tomorrowKey).map(h => {
+    // Stunden von heute und morgen mit Energie, Netz und Total – nur im Tarifjahr, für andere Jahre fehlen die Netztarife
+    const imTarifjahr = h => dayKey(h.t).startsWith(String(NETZ.jahr));
+    const alleStunden = hourly().filter(h => dayKey(h.t) === todayKey || dayKey(h.t) === tomorrowKey);
+    const ausserhalb = alleStunden.length - alleStunden.filter(imTarifjahr).length;
+    document.getElementById("netz-info").textContent += ausserhalb
+      ? " Hinweis: Für Stunden ausserhalb von " + NETZ.jahr + " sind noch keine Netztarife hinterlegt, sie fehlen in dieser Grafik."
+      : "";
+    const stunden = alleStunden.filter(imTarifjahr).map(h => {
       const key = netzKey(h.t), e = rp(h.p), n = netzOhneEeg(key), g = eegWert();
       return { t: h.t, end: h.end, key, e, n, g, total: e + n + g };
     });
@@ -755,9 +761,9 @@ footer a { color: inherit; }
       '</strong><span class="muted">' + zeile + '</span>' + (extra || "") + '</div>';
     document.getElementById("netz-kacheln").innerHTML =
       kachel("Jetzt" + (jetzt ? " · " + span(jetzt) : ""), jetzt ? jetzt.total : null,
-        jetzt ? teilText(jetzt) : "keine Daten", jetzt ? '<span class="pill mid">' + fensterName[jetzt.key] + '</span>' : "") +
-      kachel("Heute Ø", schnitt(heute), heute.length ? teilText({ e: avgTeil(heute, "e"), n: avgTeil(heute, "n"), g: eegWert() }) : "keine Daten") +
-      kachel("Morgen Ø", schnitt(morgen), morgen.length ? teilText({ e: avgTeil(morgen, "e"), n: avgTeil(morgen, "n"), g: eegWert() }) : "Preise für morgen ab ca. 13 Uhr");
+        jetzt ? teilText(jetzt) : (ausserhalb ? "kein Netztarif hinterlegt" : "keine Daten"), jetzt ? '<span class="pill mid">' + fensterName[jetzt.key] + '</span>' : "") +
+      kachel("Heute Ø", schnitt(heute), heute.length ? teilText({ e: avgTeil(heute, "e"), n: avgTeil(heute, "n"), g: eegWert() }) : (ausserhalb ? "kein Netztarif hinterlegt" : "keine Daten")) +
+      kachel("Morgen Ø", schnitt(morgen), morgen.length ? teilText({ e: avgTeil(morgen, "e"), n: avgTeil(morgen, "n"), g: eegWert() }) : (ausserhalb ? "kein Netztarif hinterlegt" : "Preise für morgen ab ca. 13 Uhr"));
 
     const teile = [{ k: "n", name: "Netznutzung", farbe: "var(--s1)" }, { k: "e", name: "Energie (Börse)", farbe: "var(--price)" }];
     if (eegAn()) teile.push({ k: "g", name: "Förderabgabe EEG", farbe: "var(--s5)" });
@@ -767,7 +773,7 @@ footer a { color: inherit; }
     // Gestapelte Stundenbalken; ein negativer Börsenpreis zieht nach unten
     const host = document.getElementById("netz-stunden");
     host.innerHTML = "";
-    if (!stunden.length) { host.textContent = "Keine Preise für heute vorhanden."; } else {
+    if (!stunden.length) { host.textContent = ausserhalb ? "Die Netztarife " + NETZ.jahr + " gelten nicht mehr. Für die neue Berechnung braucht es das neue Tarifblatt der LKW." : "Keine Preise für heute vorhanden."; } else {
       const W = Math.max(300, host.clientWidth || 1000), H = W < 600 ? 230 : 300, L = 44, R = 8, T = 12, B = 30;
       const lo = Math.min(0, ...stunden.map(s => Math.min(s.e, 0))), hi = Math.max(...stunden.map(s => s.n + s.g + Math.max(s.e, 0)));
       const ticks = niceTicks(lo, hi, 5), yMin = ticks[0], yMax = ticks[ticks.length - 1];
