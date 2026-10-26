@@ -168,6 +168,18 @@ footer a { color: inherit; }
 
   <div id="stale" class="stale" hidden></div>
 
+  <section class="panel" id="fluss">
+    <div class="panel-head">
+      <h2>Stromflüsse Schweiz</h2>
+      <span class="muted" id="fluss-stand"></span>
+    </div>
+    <div class="fluss-grid">
+      <div class="chart" id="fluss-karte"></div>
+      <div class="fluss-mix" id="fluss-mix"></div>
+    </div>
+    <p class="muted fluss-quelle">Live-Daten: <a href="https://app.electricitymaps.com/map/zone/CH/live/fifteen_minutes" target="_blank" rel="noopener">Electricity Maps</a> (Zone Schweiz). Pfeile zeigen den physikalischen Stromfluss, die Dicke die Leistung. Der Strommix ist der Verbrauchsmix inklusive Importe.</p>
+  </section>
+
   <div class="kpis" id="kpis"></div>
 
   <details class="info" id="info-base-peak">
@@ -227,18 +239,6 @@ footer a { color: inherit; }
     <h3 class="netz-h3">Netznutzung und Abgabe je Zeitfenster</h3>
     <div class="netz-legende" id="netz-legende"></div>
     <div class="chart" id="netz-bar"></div>
-  </section>
-
-  <section class="panel" id="fluss">
-    <div class="panel-head">
-      <h2>Stromflüsse Schweiz</h2>
-      <span class="muted" id="fluss-stand"></span>
-    </div>
-    <div class="fluss-grid">
-      <div class="chart" id="fluss-karte"></div>
-      <div class="fluss-mix" id="fluss-mix"></div>
-    </div>
-    <p class="muted fluss-quelle">Live-Daten: <a href="https://app.electricitymaps.com/map/zone/CH/live/fifteen_minutes" target="_blank" rel="noopener">Electricity Maps</a> (Zone Schweiz). Pfeile zeigen den physikalischen Stromfluss, die Dicke die Leistung. Der Strommix ist der Verbrauchsmix inklusive Importe.</p>
   </section>
 
   <section class="panel">
