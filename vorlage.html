@@ -116,6 +116,22 @@ td { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
 .netz-legende .q { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
 .netz-linie { width: 18px; height: 0; display: inline-block; }
 .netz-h3 { font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; margin: 6px 0 0; }
+.fluss-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 20px; align-items: start; }
+@media (max-width: 720px) { .fluss-grid { grid-template-columns: minmax(0, 1fr); } }
+.fluss-mix { display: grid; gap: 8px; }
+.fluss-mix .zeile { display: grid; grid-template-columns: 7.5em minmax(0, 1fr) 4.2em; gap: 8px; align-items: center; font-size: .88rem; }
+.fluss-mix .spur { height: 10px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+.fluss-mix .spur span { display: block; height: 100%; background: var(--s3); border-radius: 0 3px 3px 0; }
+.fluss-mix .wert { text-align: right; font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.fluss-quelle { margin: 0; font-size: .82rem; }
+.fluss-quelle a { color: inherit; }
+.fluss-hinweis { border: 1px dashed var(--line); border-radius: 8px; padding: 14px 16px; color: var(--muted); }
+#fluss-karte text.land { fill: var(--ink); font-family: var(--font-display); font-weight: 600; font-size: 19px; }
+#fluss-karte text.fluss-wert { fill: var(--ink); font-size: 16px; }
+#fluss-karte text.fluss-klein { font-size: 15px; }
+.fluss-pfeil { stroke-dasharray: 10 8; animation: fluss 1.1s linear infinite; }
+@keyframes fluss { to { stroke-dashoffset: -18; } }
+@media (prefers-reduced-motion: reduce) { .fluss-pfeil { animation: none; } }
 .netz-auf { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: grid; gap: 10px; }
 .netz-auf .balken { display: flex; height: 14px; border-radius: 4px; overflow: hidden; gap: 2px; }
 .netz-auf table { font-size: .9rem; }
@@ -211,6 +227,18 @@ footer a { color: inherit; }
     <h3 class="netz-h3">Netznutzung und Abgabe je Zeitfenster</h3>
     <div class="netz-legende" id="netz-legende"></div>
     <div class="chart" id="netz-bar"></div>
+  </section>
+
+  <section class="panel" id="fluss">
+    <div class="panel-head">
+      <h2>Stromflüsse Schweiz</h2>
+      <span class="muted" id="fluss-stand"></span>
+    </div>
+    <div class="fluss-grid">
+      <div class="chart" id="fluss-karte"></div>
+      <div class="fluss-mix" id="fluss-mix"></div>
+    </div>
+    <p class="muted fluss-quelle">Live-Daten: <a href="https://app.electricitymaps.com/map/zone/CH/live/fifteen_minutes" target="_blank" rel="noopener">Electricity Maps</a> (Zone Schweiz). Pfeile zeigen den physikalischen Stromfluss, die Dicke die Leistung. Der Strommix ist der Verbrauchsmix inklusive Importe.</p>
   </section>
 
   <section class="panel">
@@ -869,7 +897,83 @@ footer a { color: inherit; }
     });
   }
 
-  function render() { header(); kpis(); dayChart(); plan(); netz(); month(); history(); }
+  // ---- Stromflüsse Schweiz (Electricity Maps): Nachbarländer mit animierten Pfeilen, CO2, Verbrauchsmix ----
+  const MIX_NAMEN = { nuclear: "Kernkraft", hydro: "Wasserkraft", "hydro discharge": "Pumpspeicher", solar: "Solar", wind: "Wind",
+    biomass: "Biomasse", gas: "Gas", coal: "Kohle", oil: "Öl", geothermal: "Geothermie", unknown: "Unbekannt", "battery discharge": "Batterie" };
+  const LAENDER = [
+    { code: "DE", name: "Deutschland", x: 320, y: 46 },
+    { code: "FR", name: "Frankreich", x: 66, y: 210 },
+    { code: "AT", name: "Österreich", x: 574, y: 210 },
+    { code: "IT", name: "Italien", x: 320, y: 374 }
+  ];
+  function stromfluss() {
+    const karte = document.getElementById("fluss-karte"), mixEl = document.getElementById("fluss-mix");
+    const E = D.emap;
+    if (!E || !E.power) {
+      document.getElementById("fluss-stand").textContent = "";
+      karte.innerHTML = '<div class="fluss-hinweis">Die Live-Stromflüsse erscheinen hier, sobald der API-Schlüssel von Electricity Maps bei GitHub hinterlegt ist.</div>';
+      mixEl.innerHTML = "";
+      return;
+    }
+    const p = E.power, imp = p.powerImportBreakdown || {}, exp = p.powerExportBreakdown || {};
+    const summe = (o, code) => Object.keys(o).filter(k => k === code || k.startsWith(code + "-")).reduce((a, k) => a + (+o[k] || 0), 0);
+    const fluss = LAENDER.map(l => ({ ...l, mw: summe(imp, l.code) - summe(exp, l.code) })); // + = Import in die Schweiz
+    const zeit = p.datetime ? new Date(p.datetime) : null;
+    document.getElementById("fluss-stand").textContent = zeit ? "Stand " + fmtStamp.format(zeit) + (p.isEstimated ? " (geschätzt)" : "") : "";
+
+    // Karte: Schweiz in der Mitte, Nachbarn rundherum
+    karte.innerHTML = "";
+    const svg = svgEl("svg", { viewBox: "0 0 640 440", role: "img", "aria-label": "Stromflüsse zwischen der Schweiz und den Nachbarländern" }, karte);
+    const CH = { x: 320, y: 210 };
+    const maxMw = Math.max(500, ...fluss.map(f => Math.abs(f.mw)));
+    const gw = mw => (Math.abs(mw) / 1000).toLocaleString("de-CH", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " GW";
+    for (const f of fluss) {
+      const dx = CH.x - f.x, dy = CH.y - f.y, len = Math.hypot(dx, dy), ux = dx / len, uy = dy / len;
+      const a = { x: f.x + ux * 64, y: f.y + uy * 28 }, b = { x: CH.x - ux * 90, y: CH.y - uy * 50 }; // Kanten der Kästen
+      const importiert = f.mw >= 0;
+      const [von, nach] = importiert ? [a, b] : [b, a];
+      const breite = 2 + 10 * Math.abs(f.mw) / maxMw;
+      const farbe = importiert ? "var(--s1)" : "var(--s2)";
+      if (Math.abs(f.mw) >= 1) {
+        svgEl("line", { x1: von.x, y1: von.y, x2: nach.x, y2: nach.y, stroke: farbe, "stroke-opacity": 0.18, "stroke-width": breite + 6, "stroke-linecap": "round" }, svg);
+        svgEl("line", { x1: von.x, y1: von.y, x2: nach.x, y2: nach.y, stroke: farbe, "stroke-width": breite, "stroke-linecap": "round", class: "fluss-pfeil" }, svg);
+        const s = 7 + breite / 2; // Pfeilspitze am Ziel
+        const ang = Math.atan2(nach.y - von.y, nach.x - von.x);
+        const pt = (r, w) => (nach.x - Math.cos(ang) * r + Math.cos(ang + Math.PI / 2) * w).toFixed(1) + "," + (nach.y - Math.sin(ang) * r + Math.sin(ang + Math.PI / 2) * w).toFixed(1);
+        svgEl("polygon", { points: nach.x.toFixed(1) + "," + nach.y.toFixed(1) + " " + pt(s * 1.6, s) + " " + pt(s * 1.6, -s), fill: farbe }, svg);
+      }
+      const waagrecht = f.y === CH.y, mx = (a.x + b.x) / 2 + (waagrecht ? 0 : 16), my = (a.y + b.y) / 2;
+      const lab = svgEl("text", { x: mx, y: waagrecht ? my - 34 : my - 4, "text-anchor": waagrecht ? "middle" : "start", class: "fluss-wert" }, svg);
+      svgEl("tspan", { x: mx, dy: 0 }, lab).textContent = Math.abs(f.mw) < 1 ? "kein" : (importiert ? "Import" : "Export");
+      svgEl("tspan", { x: mx, dy: 19, style: "font-weight:600" }, lab).textContent = Math.abs(f.mw) < 1 ? "Austausch" : gw(f.mw);
+      svgEl("rect", { x: f.x - 64, y: f.y - 28, width: 128, height: 56, rx: 8, fill: "var(--panel)", stroke: "var(--line)" }, svg);
+      svgEl("text", { x: f.x, y: f.y + 6, "text-anchor": "middle", class: "land" }, svg).textContent = f.name;
+    }
+    const ci = E.carbon && E.carbon.carbonIntensity;
+    svgEl("rect", { x: CH.x - 90, y: CH.y - 50, width: 180, height: 100, rx: 10, fill: "var(--panel)", stroke: "var(--ink)", "stroke-width": 2 }, svg);
+    svgEl("text", { x: CH.x, y: CH.y - 20, "text-anchor": "middle", class: "land" }, svg).textContent = "Schweiz";
+    svgEl("text", { x: CH.x, y: CH.y + 14, "text-anchor": "middle", style: "fill:var(--ink);font-size:30px;font-weight:600" }, svg).textContent = ci != null ? Math.round(ci) + " g" : "–";
+    svgEl("text", { x: CH.x, y: CH.y + 36, "text-anchor": "middle", class: "fluss-klein" }, svg).textContent = "CO₂eq pro kWh";
+    const netto = fluss.reduce((a, f) => a + f.mw, 0);
+    svgEl("text", { x: 4, y: 432, class: "fluss-klein" }, svg).textContent = (netto >= 0 ? "Netto-Import " : "Netto-Export ") + gw(netto);
+    svgEl("line", { x1: 452, x2: 476, y1: 427, y2: 427, stroke: "var(--s1)", "stroke-width": 5 }, svg);
+    svgEl("text", { x: 482, y: 432, class: "fluss-klein" }, svg).textContent = "Import";
+    svgEl("line", { x1: 552, x2: 576, y1: 427, y2: 427, stroke: "var(--s2)", "stroke-width": 5 }, svg);
+    svgEl("text", { x: 582, y: 432, class: "fluss-klein" }, svg).textContent = "Export";
+
+    // Verbrauchsmix als Balkenliste
+    const mix = p.powerConsumptionBreakdown || p.powerProductionBreakdown || {};
+    const eintraege = Object.keys(mix).map(k => ({ name: MIX_NAMEN[k] || k, mw: +mix[k] || 0 })).filter(e => e.mw > 0).sort((a, b) => b.mw - a.mw);
+    const total = eintraege.reduce((a, e) => a + e.mw, 0);
+    mixEl.innerHTML = '<span class="label">Strommix (Verbrauch)</span>' +
+      eintraege.map(e => '<div class="zeile"><span>' + e.name + '</span><span class="spur"><span style="width:' + (e.mw / eintraege[0].mw * 100).toFixed(1) + '%"></span></span><span class="wert">' +
+        Math.round(e.mw / total * 100) + ' %</span></div>').join("") +
+      '<div class="zeile"><span class="muted">Erneuerbar</span><span></span><span class="wert">' + (p.renewablePercentage != null ? Math.round(p.renewablePercentage) + " %" : "–") + '</span></div>' +
+      '<div class="zeile"><span class="muted">CO₂-frei</span><span></span><span class="wert">' + (p.fossilFreePercentage != null ? Math.round(p.fossilFreePercentage) + " %" : "–") + '</span></div>' +
+      '<div class="zeile"><span class="muted">Verbrauch</span><span></span><span class="wert">' + (p.powerConsumptionTotal != null ? gw(p.powerConsumptionTotal) : "–") + '</span></div>';
+  }
+
+  function render() { header(); kpis(); dayChart(); plan(); netz(); stromfluss(); month(); history(); }
 
   for (const b of document.querySelectorAll(".seg button")) b.addEventListener("click", () => {
     unit = b.dataset.unit;

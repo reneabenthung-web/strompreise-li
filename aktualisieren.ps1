@@ -214,8 +214,23 @@ try {
     $loxoneJson = '{"stand":"' + $jetztLokal.ToString('yyyy-MM-ddTHH:mm') + '","einheit":"Rp./kWh exkl. MWST","eurchf":' + $kurs.ToString('0.0000', $inv) +
                   ',"netztarif_jahr":' + $netz.jahr + ',' + ($lxJson -join ',') + '}'
 
+    # Stromflüsse, Strommix und CO2 der Schweiz von Electricity Maps (nur mit API-Schlüssel, sonst leer)
+    $emapJson = 'null'
+    if ($env:ELECTRICITYMAPS_TOKEN) {
+        try {
+            $kopf = @{ 'auth-token' = $env:ELECTRICITYMAPS_TOKEN }
+            $hole = { param($pfad) [Text.Encoding]::UTF8.GetString((Invoke-WebRequest -Uri ('https://api.electricitymap.org/v3/' + $pfad) -Headers $kopf -UseBasicParsing -TimeoutSec 60).RawContentStream.ToArray()) }
+            $leistung = & $hole 'power-breakdown/latest?zone=CH'
+            $co2 = & $hole 'carbon-intensity/latest?zone=CH'
+            $null = $leistung | ConvertFrom-Json; $null = $co2 | ConvertFrom-Json
+            $emapJson = '{"power":' + $leistung + ',"carbon":' + $co2 + '}'
+        } catch {
+            Schreibe-Log ("Electricity Maps nicht abrufbar: " + $_.Exception.Message)   # Rest der Seite läuft trotzdem
+        }
+    }
+
     $daten = '{"generated":"' + $jetzt + '","eurchf":' + $kursText + ',"eurchfDate":"' + $letzterKursTag +
-             '","zones":{"CH":' + $aktuellJson + '},"verlauf":' + $verlaufJson + ',"netz":' + $netzJson + '}'
+             '","zones":{"CH":' + $aktuellJson + '},"verlauf":' + $verlaufJson + ',"netz":' + $netzJson + ',"emap":' + $emapJson + '}'
 
     $html = [IO.File]::ReadAllText($vorlage, [Text.Encoding]::UTF8)
     $html = $html.Replace('/*DATEN*/', $daten.Replace('</', '<\/'))

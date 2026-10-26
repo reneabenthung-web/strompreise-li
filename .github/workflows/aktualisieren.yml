@@ -39,6 +39,8 @@ jobs:
       - name: Preise holen und Seite bauen
         shell: pwsh
         run: ./aktualisieren.ps1
+        env:
+          ELECTRICITYMAPS_TOKEN: ${{ secrets.ELECTRICITYMAPS_TOKEN }}
 
       - name: Seite bereitstellen
         run: |
